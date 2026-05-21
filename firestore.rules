@@ -10,57 +10,71 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
 
-    // --- USERS COLLECTION ---
+    // --- USERS COLLECTION (Recursive Access for Owner) ---
     match /users/{userId} {
-      allow read: if isSignedIn(); // Allow reading profiles (for names/avatars)
-      allow write: if isOwner(userId); // Users manage their own profile
+      allow read, write: if isSignedIn() && isOwner(userId);
       
-      // Sub-collections (notifications, inbox)
-      match /notifications/{notificationId} {
-        allow read, update, delete: if isOwner(userId);
-        allow create: if isSignedIn(); // Allow others to send notifications
+      match /notifications/{notifId} {
+        allow read, write: if isSignedIn() && isOwner(userId);
+        allow create: if isSignedIn(); // others can send notifs
       }
-      match /inbox/{messageId} {
-        allow read, update, delete: if isOwner(userId);
-        allow create: if isSignedIn(); // Allow others to send DMs
+
+      match /blocked_users/{blockedId} {
+        allow read, write: if isSignedIn() && isOwner(userId);
       }
-      match /moods/{moodId} {
-        allow read, write: if isOwner(userId);
+
+      match /{allSubcollections=**} {
+        allow read, write: if isSignedIn() && isOwner(userId);
       }
     }
 
     // --- PUBLIC CONTENT ---
-    
+
     // Community Posts
     match /posts/{postId} {
       allow read: if true;
       allow create: if isSignedIn();
-      // Allow updates for Likes/Comments (simplified for functionality)
       allow update: if isSignedIn();
       allow delete: if isSignedIn() && isOwner(resource.data.userId);
     }
-    
+
     // Success Stories (Vwa Viktwa)
     match /success_stories/{storyId} {
       allow read: if true;
       allow create: if isSignedIn();
     }
-    
+
     // Support Chat (Global)
     match /support_chat/{messageId} {
       allow read: if true;
       allow create: if isSignedIn();
     }
 
+    // --- NEW COLLECTIONS ---
+    // Online Users
+    match /online_users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isOwner(userId);
+    }
+
+    // Direct Messages
+    match /direct_messages/{messageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+    }
+
+    // DLS Lobby
+    match /dls_lobby/{matchId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+    }
+
     // --- WELLNESS DATA ---
     // Gratitude Jar
     match /gratitude/{noteId} {
       allow read, write: if isSignedIn() && isOwner(resource.data.userId);
-    }
-    
-    // Mood Logs
-    match /users/{userId}/moods/{moodId} {
-      allow read, write: if isSignedIn() && isOwner(userId);
     }
 
     // Default deny all others

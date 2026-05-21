@@ -1,4 +1,4 @@
-const CACHE_NAME = 'zepol-v6.0-final';
+const CACHE_NAME = 'zepol-v18.0.43-MOOD-ENHANCED';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -43,11 +43,13 @@ self.addEventListener('activate', event => {
     );
 });
 
-// Fetch Event
+// Fetch Event - BYPASS CACHE FOR DEBUGGING
 self.addEventListener('fetch', event => {
     event.respondWith(
-        caches.match(event.request).then(cacheRes => {
-            return cacheRes || fetch(event.request).catch(() => {
+        fetch(event.request).catch(() => {
+            // Only use cache as fallback for offline
+            return caches.match(event.request).then(cacheRes => {
+                if (cacheRes) return cacheRes;
                 if (event.request.url.indexOf('.html') > -1) {
                     return caches.match('./index.html');
                 }

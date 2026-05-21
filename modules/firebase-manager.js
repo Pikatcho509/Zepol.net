@@ -1,5 +1,5 @@
-import { auth, db, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, doc, setDoc, getDoc, updateDoc, collection, addDoc, query, orderBy, limit, onSnapshot, arrayUnion, increment, where } from '../firebase-config.js';
-import { NotificationSystem } from './ui.js';
+import { auth, db, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, doc, setDoc, getDoc, getDocs, updateDoc, collection, addDoc, query, orderBy, limit, onSnapshot, arrayUnion, increment, where, sendPasswordResetEmail, deleteDoc } from '../firebase-config.js';
+import { NotificationSystem } from './ui.js?v=18.0.43-MOOD-ENHANCED';
 
 export class FirebaseManager {
     constructor() {
@@ -9,34 +9,61 @@ export class FirebaseManager {
 
     initAuth() {
         console.log("🔥 Initializing Firebase Auth... Project ID:", db._app.options.projectId);
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                try {
-                    const userDoc = await getDoc(doc(db, "users", user.uid));
-                    const userData = userDoc.exists() ? userDoc.data() : {};
 
-                    this.currentUser = {
-                        name: user.displayName || user.email.split('@')[0],
-                        email: user.email,
-                        uid: user.uid,
-                        loggedIn: true,
-                        isMember: userData.isMember || false
-                    };
-                } catch (e) {
-                    console.error("Error fetching user data:", e);
-                    this.currentUser = {
-                        name: user.displayName || user.email.split('@')[0],
-                        email: user.email,
-                        uid: user.uid,
-                        loggedIn: true,
-                        isMember: false
-                    };
+        // Return a promise that resolves when the first auth check completes
+        this.authReadyPromise = new Promise((resolve) => {
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    try {
+                        const userDoc = await getDoc(doc(db, "users", user.uid));
+                        const userData = userDoc.exists() ? userDoc.data() : {};
+
+                        // Load blocked users
+                        const blockedUsersSnapshot = await getDoc(doc(db, `users/${user.uid}/blocked_users/list`));
+                        const blockedUsersData = blockedUsersSnapshot.exists() ? blockedUsersSnapshot.data().uids || [] : [];
+
+                        this.currentUser = {
+                            name: user.displayName || user.email.split('@')[0],
+                            email: user.email,
+                            uid: user.uid,
+                            loggedIn: true,
+                            isMember: userData.isMember || false,
+                            engagementCount: userData.engagementCount || 0,
+                            hasAcceptedRules: userData.hasAcceptedRules || false,
+                            blockedUsers: blockedUsersData
+                        };
+                    } catch (e) {
+                        console.error("Error fetching user data:", e);
+                        this.currentUser = {
+                            name: user.displayName || user.email.split('@')[0],
+                            email: user.email,
+                            uid: user.uid,
+                            loggedIn: true,
+                            isMember: false,
+                            engagementCount: 0,
+                            hasAcceptedRules: false,
+                            blockedUsers: []
+                        };
+                    }
+                    // Start tracking online status
+                    this.updateUserStatus('online');
+                } else {
+                    this.currentUser = { name: 'Envite', loggedIn: false, isMember: false, uid: null };
                 }
-            } else {
-                this.currentUser = { name: 'Envite', loggedIn: false, isMember: false, uid: null };
-            }
-            if (window.updateUserUI) window.updateUserUI(); // Global UI update
+
+                // Notify logic (UI updates)
+                if (window.updateUserUI) window.updateUserUI(); // Global UI update
+
+                // Resolve initialization promise on FIRST run
+                resolve(this.currentUser);
+            });
         });
+    }
+
+    // Helper to wait for auth ready
+    async waitForAuth() {
+        if (this.authReadyPromise) return this.authReadyPromise;
+        return this.getUser();
     }
 
     getUser() {
@@ -44,18 +71,47 @@ export class FirebaseManager {
     }
 
     async login(identifier, password) {
+        console.log("🔥 FirebaseManager.login called with:", identifier);
         try {
             let email = identifier;
+            // Phone Normalization logic
             if (/^[+]?[0-9\s]+$/.test(identifier) && !identifier.includes('@')) {
                 email = `${identifier.replace(/\s/g, '')}@zepol-phone.temp`;
             }
-            await signInWithEmailAndPassword(auth, email, password);
+
+            console.log("⏳ Awaiting signInWithEmailAndPassword...");
+
+            // Login Timeout Race (15s)
+            const loginPromise = signInWithEmailAndPassword(auth, email, password);
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('auth/network-timeout')), 15000)
+            );
+
+            const userCredential = await Promise.race([loginPromise, timeoutPromise]);
+
+            console.log("✅ User Signed In:", userCredential.user.uid);
+
+            // MANUAL STATE UPDATE: Set currentUser immediately to avoid listener race condition
+            // We fetch the basic info we have now, firestore data may come later but loggedIn=true is key
+            this.currentUser = {
+                name: userCredential.user.displayName || userCredential.user.email.split('@')[0],
+                email: userCredential.user.email,
+                uid: userCredential.user.uid,
+                loggedIn: true,
+                isMember: false // We don't know yet, but at least we are logged in. Listener will update this later.
+            };
             return { success: true };
         } catch (error) {
-            console.error("Login Error:", error);
-            let msg = error.message;
-            if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-                msg = "Imèl, telefòn oswa modpas la pa bon. Tanpri tcheke yo byen.";
+            console.error("❌ Firebase Login Error:", error);
+            // ...
+
+            let msg = "Erè koneksyon.";
+            if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+                msg = "Imel oswa modpas ou pa kòrèk.";
+            } else if (error.code === 'auth/too-many-requests') {
+                msg = "Twòp esè echwe. Tanpri eseye pita.";
+            } else if (error.code === 'auth/network-request-failed') {
+                msg = "Pwoblèm koneksyon entènèt.";
             }
             return { success: false, message: msg };
         }
@@ -81,19 +137,39 @@ export class FirebaseManager {
                 email: email,
                 phone: userData.phone || '',
                 username: userData.username || '',
-                createdAt: new Date().toISOString(),
-                ...userData
+                isMember: false, // Default to non-member
+                createdAt: new Date().toISOString()
             });
             return { success: true };
         } catch (error) {
-            console.error("Register Error:", error);
-            return { success: false, message: error.message };
+            console.error("Registration Error:", error);
+            let msg = error.message;
+            if (error.code === 'auth/email-already-in-use') {
+                msg = "Imèl sa a deja itilize. Eseye konekte pito.";
+            } else if (error.code === 'auth/weak-password') {
+                msg = "Modpas la twò fèb. Mete omwen 6 karaktè.";
+            } else if (error.code === 'auth/invalid-email') {
+                msg = "Imèl la pa bon.";
+            }
+            return { success: false, message: msg };
+        }
+    }
+
+    async resetPassword(email) {
+        try {
+            await sendPasswordResetEmail(auth, email);
+            return { success: true, message: "Imèl rekiperasyon voye! Tcheke bwat ou." };
+        } catch (error) {
+            console.error("Reset Password Error:", error);
+            let msg = "Erè pandan voye imèl la.";
+            if (error.code === 'auth/user-not-found') msg = "Pa gen kont ak imèl sa a.";
+            if (error.code === 'auth/invalid-email') msg = "Imèl la pa valid.";
+            return { success: false, message: msg };
         }
     }
 
     async logout() {
-        // Clean up all active listeners before logging out
-        if (window.firestoreUnsubscribers) {
+        if (this.currentUser?.uid && window.firestoreUnsubscribers) {
             window.firestoreUnsubscribers.forEach(unsub => {
                 try {
                     unsub();
@@ -104,6 +180,7 @@ export class FirebaseManager {
             window.firestoreUnsubscribers = [];
         }
         await signOut(auth);
+        window.location.reload(); // Refresh to clear all states
     }
 
     listenToPosts(type, callback) {
@@ -111,8 +188,12 @@ export class FirebaseManager {
 
         return onSnapshot(q, (snapshot) => {
             const posts = [];
+            const blocked = this.currentUser?.blockedUsers || [];
             snapshot.forEach((doc) => {
-                posts.push({ id: doc.id, ...doc.data() });
+                const data = doc.data();
+                if (!blocked.includes(data.creatorUid)) {
+                    posts.push({ id: doc.id, ...data });
+                }
             });
             callback(posts);
         }, (error) => {
@@ -121,9 +202,10 @@ export class FirebaseManager {
                 const fallbackQ = query(collection(db, "posts"), orderBy("date", "desc"), limit(100));
                 onSnapshot(fallbackQ, (snapshot) => {
                     const posts = [];
+                    const blocked = this.currentUser?.blockedUsers || [];
                     snapshot.forEach((doc) => {
                         const data = doc.data();
-                        if (data.postType === type) {
+                        if (data.postType === type && !blocked.includes(data.creatorUid)) {
                             posts.push({ id: doc.id, ...data });
                         }
                     });
@@ -152,15 +234,33 @@ export class FirebaseManager {
         }
     }
 
-    async addMoodLog(score) {
-        if (!this.currentUser?.uid) return;
+    async addMoodEntry(data) {
+        if (!this.currentUser?.uid) return false;
         try {
             await addDoc(collection(db, `users/${this.currentUser.uid}/moods`), {
-                score: score,
-                date: new Date().toISOString()
+                ...data,
+                timestamp: data.timestamp || new Date().toISOString()
             });
+            return true;
         } catch (e) {
-            console.error("Error saving mood:", e);
+            console.warn("⚠️ Mood log skipped (Permissions):", e.message);
+            return false;
+        }
+    }
+
+    async updateUserStatus(status) {
+        if (!this.currentUser?.uid || !this.currentUser.loggedIn) return;
+        try {
+            const statusRef = doc(db, "online_users", this.currentUser.uid);
+            await setDoc(statusRef, {
+                uid: this.currentUser.uid,
+                name: this.currentUser.name || 'Zanmi',
+                status: status || 'online',
+                lastActive: new Date().toISOString()
+            }, { merge: true });
+        } catch (e) {
+            // Silencing as warning for production stability
+            console.warn("⚠️ Online status update skipped:", e.message);
         }
     }
 
@@ -241,6 +341,24 @@ export class FirebaseManager {
         }
     }
 
+    async blockUser(userIdToBlock) {
+        if (!this.currentUser?.uid) return false;
+        try {
+            const currentBlocked = this.currentUser.blockedUsers || [];
+            if (!currentBlocked.includes(userIdToBlock)) {
+                currentBlocked.push(userIdToBlock);
+                await setDoc(doc(db, `users/${this.currentUser.uid}/blocked_users/list`), { uids: currentBlocked }, { merge: true });
+                this.currentUser.blockedUsers = currentBlocked;
+                // Force UI refresh explicitly on post / inbox level later if needed.
+                return true;
+            }
+            return true; // Already blocked
+        } catch (e) {
+            console.error("Error blocking user:", e);
+            return false;
+        }
+    }
+
     // --- Notifications & DMs ---
 
     async addNotification(userId, data) {
@@ -256,7 +374,10 @@ export class FirebaseManager {
     }
 
     listenToNotifications(callback) {
-        if (!this.currentUser?.uid) return () => { };
+        if (!this.currentUser?.uid || !this.currentUser.loggedIn) {
+            // Return dummy unsubscriber
+            return () => { };
+        }
         const q = query(collection(db, `users/${this.currentUser.uid}/notifications`), orderBy("date", "desc"), limit(20));
         return onSnapshot(q, (snapshot) => {
             const notifs = [];
@@ -264,6 +385,9 @@ export class FirebaseManager {
                 notifs.push({ id: doc.id, ...doc.data() });
             });
             callback(notifs);
+        }, (error) => {
+            console.warn("⚠️ Listen Notifications Error:", error.message);
+            callback([]);
         });
     }
 
@@ -278,40 +402,154 @@ export class FirebaseManager {
         }
     }
 
+    async deleteNotification(notifId) {
+        if (!this.currentUser?.uid) return false;
+        try {
+            await deleteDoc(doc(db, `users/${this.currentUser.uid}/notifications`, notifId));
+            return true;
+        } catch (e) {
+            console.error("Error deleting notification:", e);
+            return false;
+        }
+    }
+
     async sendDirectMessage(recipientId, text) {
         if (!this.currentUser?.uid) return false;
         try {
             const msg = {
                 senderId: this.currentUser.uid,
-                senderName: this.currentUser.name,
+                senderName: this.currentUser.name || 'Zanmi Zepòl',
+                recipientId: recipientId,
                 text: text,
                 date: new Date().toISOString(),
-                read: false
+                read: false,
+                type: 'dm'
             };
-            await addDoc(collection(db, `users/${recipientId}/inbox`), msg);
+            // Use top-level collection for universal access (bypass per-user permission blocks)
+            await addDoc(collection(db, "direct_messages"), msg);
 
             await this.addNotification(recipientId, {
                 type: 'dm',
-                senderName: this.currentUser.name,
+                senderName: this.currentUser.name || 'Zanmi Zepòl',
                 message: "voye yon bèl mesaj sipò pou ou. Mèsi pou konfyans ou! 🕊️"
             });
+            console.log("✅ DM sent via shared collection");
             return true;
         } catch (e) {
-            console.error("Error sending DM:", e);
+            console.error("❌ DM Send Error:", e);
             return false;
         }
     }
 
     listenToInbox(callback) {
-        if (!this.currentUser?.uid) return () => { };
-        const q = query(collection(db, `users/${this.currentUser.uid}/inbox`), orderBy("date", "desc"), limit(50));
-        return onSnapshot(q, (snapshot) => {
-            const msgs = [];
+        if (!this.currentUser?.uid || !this.currentUser.loggedIn) return () => { };
+        
+        let receivedMsgs = [];
+        let sentMsgs = [];
+        let isInitialLoad1 = true;
+        let isInitialLoad2 = true;
+
+        const mergeAndCallback = () => {
+            const allMsgs = [...receivedMsgs, ...sentMsgs];
+            // Sort by date descending
+            allMsgs.sort((a, b) => new Date(b.date) - new Date(a.date));
+            // De-duplicate by ID just in case
+            const uniqueMsgs = [];
+            const seen = new Set();
+            for (const msg of allMsgs) {
+                if (!seen.has(msg.id)) {
+                    seen.add(msg.id);
+                    uniqueMsgs.push(msg);
+                }
+            }
+            console.log(`📩 Inbox updated: ${uniqueMsgs.length} messages combined`);
+            callback(uniqueMsgs.slice(0, 100));
+        };
+
+        const qReceived = query(
+            collection(db, "direct_messages"),
+            where("recipientId", "==", this.currentUser.uid),
+            orderBy("date", "desc"),
+            limit(50)
+        );
+
+        const unsub1 = onSnapshot(qReceived, (snapshot) => {
+            const blocked = this.currentUser?.blockedUsers || [];
+            receivedMsgs = [];
             snapshot.forEach((doc) => {
-                msgs.push({ id: doc.id, ...doc.data() });
+                const data = doc.data();
+                if (!blocked.includes(data.senderId)) {
+                    receivedMsgs.push({ id: doc.id, ...data });
+                }
             });
-            callback(msgs);
+            isInitialLoad1 = false;
+            mergeAndCallback();
+        }, (error) => {
+            console.warn("⚠️ Listen Inbox Error (Received):", error.message);
+            isInitialLoad1 = false;
+            mergeAndCallback();
         });
+
+        const qSent = query(
+            collection(db, "direct_messages"),
+            where("senderId", "==", this.currentUser.uid),
+            orderBy("date", "desc"),
+            limit(50)
+        );
+
+        const unsub2 = onSnapshot(qSent, (snapshot) => {
+            sentMsgs = [];
+            snapshot.forEach((doc) => {
+                sentMsgs.push({ id: doc.id, ...doc.data() });
+            });
+            isInitialLoad2 = false;
+            mergeAndCallback();
+        }, (error) => {
+            if (error.code === 'failed-precondition' || error.message.includes('index')) {
+                // If index is missing for senderId + date, we can fallback or just ignore. 
+                // Mostly Firebase requires index for where + orderBy.
+                // We'll just fetch without orderBy if we have to.
+                console.info("Missing Index for Sent messages, using fallback...");
+                const fallbackQ = query(collection(db, "direct_messages"), where("senderId", "==", this.currentUser.uid), limit(50));
+                onSnapshot(fallbackQ, (fbSnapshot) => {
+                    sentMsgs = fbSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                    mergeAndCallback();
+                });
+            } else {
+                console.warn("⚠️ Listen Inbox Error (Sent):", error.message);
+            }
+            isInitialLoad2 = false;
+            mergeAndCallback();
+        });
+
+        return () => {
+            unsub1();
+            unsub2();
+        };
+    }
+
+    async deleteMessage(messageId) {
+        if (!this.currentUser?.uid) return false;
+        try {
+            await deleteDoc(doc(db, "direct_messages", messageId));
+            return true;
+        } catch (e) {
+            console.error("Error deleting message:", e);
+            return false;
+        }
+    }
+
+    async getUserProfile(uid) {
+        try {
+            const docRef = doc(db, "users", uid);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                return docSnap.data();
+            }
+        } catch (e) {
+            console.warn("getUserProfile error:", e);
+        }
+        return null;
     }
 
     // --- Other methods ---
@@ -328,6 +566,9 @@ export class FirebaseManager {
             const stories = [];
             snapshot.forEach((doc) => stories.push({ id: doc.id, ...doc.data() }));
             callback(stories);
+        }, (error) => {
+            console.warn("Listen Stories Error:", error.message);
+            callback([]);
         });
     }
 
@@ -337,6 +578,9 @@ export class FirebaseManager {
             const msgs = [];
             snapshot.forEach((doc) => msgs.push({ id: doc.id, ...doc.data() }));
             callback(msgs);
+        }, (error) => {
+            console.warn("Listen Chat Error:", error.message);
+            callback([]);
         });
     }
 
@@ -350,5 +594,204 @@ export class FirebaseManager {
             });
             return true;
         } catch (e) { return false; }
+    }
+
+    // --- DLS & Mood Enhancements ---
+    async addDLSCode(code) {
+        if (!this.currentUser?.uid) return false;
+        try {
+            await addDoc(collection(db, "dls_lobby"), {
+                code: code,
+                ownerId: this.currentUser.uid,
+                ownerName: this.currentUser.name,
+                timestamp: new Date().toISOString(),
+                status: 'open'
+            });
+            return true;
+        } catch (e) { return false; }
+    }
+
+    listenToDLSLobby(callback) {
+        const q = query(collection(db, "dls_lobby"), orderBy("timestamp", "desc"), limit(20));
+        return onSnapshot(q, (snapshot) => {
+            const codes = [];
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (data.status === 'open' || data.type !== 'system') {
+                    codes.push({ id: doc.id, ...data });
+                }
+            });
+            callback(codes);
+        }, (error) => {
+            // Quietly handle permission errors in production
+            if (error.message.includes("permissions")) {
+                console.info("ℹ️ Lobby listener restricted by permissions.");
+            } else {
+                console.warn("⚠️ Listen DLS Lobby Error:", error.message);
+            }
+            callback([]);
+        });
+    }
+
+    async findSystemMatch() {
+        if (!this.currentUser?.uid) return null;
+        try {
+            // Find an open system match not created by the current user
+            const q = query(collection(db, "dls_lobby"), where("type", "==", "system"), where("status", "==", "waiting_for_player"), limit(5));
+            const snapshot = await getDocs(q);
+            let matchIdToJoin = null;
+
+            snapshot.forEach(docSnap => {
+                if (docSnap.data().ownerId !== this.currentUser.uid && !matchIdToJoin) {
+                    matchIdToJoin = docSnap.id;
+                }
+            });
+
+            if (matchIdToJoin) {
+                return await this.joinSystemMatch(matchIdToJoin);
+            } else {
+                return await this.createSystemMatch();
+            }
+        } catch (e) {
+            console.error(e);
+            return null;
+        }
+    }
+
+    async createSystemMatch() {
+        if (!this.currentUser?.uid) return null;
+        try {
+            const matchDoc = await addDoc(collection(db, "dls_lobby"), {
+                type: 'system',
+                ownerId: this.currentUser.uid,
+                ownerName: this.currentUser.name,
+                status: 'waiting_for_player',
+                timestamp: new Date().toISOString()
+            });
+            return matchDoc.id;
+        } catch (e) {
+            console.error(e); return null;
+        }
+    }
+
+    async joinSystemMatch(matchId) {
+        if (!this.currentUser?.uid) return null;
+        try {
+            const gameCode = `Zepòl-${Math.floor(1000 + Math.random() * 9000)}`;
+            const matchRef = doc(db, "dls_lobby", matchId);
+            await updateDoc(matchRef, {
+                status: 'matched',
+                joinerId: this.currentUser.uid,
+                joinerName: this.currentUser.name,
+                gameCode: gameCode
+            });
+
+            // Notify original owner out of courtesy
+            const matchSnap = await getDoc(matchRef);
+            if (matchSnap.exists()) {
+                await this.notifyDLSEvent(matchSnap.data().ownerId, { type: 'match_accept', joinerName: this.currentUser.name });
+            }
+
+            return matchId;
+        } catch (e) {
+            console.error(e); return null;
+        }
+    }
+
+    listenToMatch(matchId, callback) {
+        if (!matchId) return () => { };
+        return onSnapshot(doc(db, "dls_lobby", matchId), (docSnap) => {
+            if (docSnap.exists()) {
+                callback({ id: docSnap.id, ...docSnap.data() });
+            } else {
+                callback(null);
+            }
+        });
+    }
+    async notifyDLSEvent(targetId, data) {
+        if (!this.currentUser?.uid) return false;
+        try {
+            const msg = data.type === 'match_accept'
+                ? `⚽ ${data.joinerName} aksepte defi DLS ou a! Pare kò w.`
+                : `⚽ ${this.currentUser.name} envite w jwe DLS. Kòd: ${data.code}`;
+
+            await this.addNotification(targetId, {
+                type: 'dls',
+                senderName: this.currentUser.name,
+                message: msg
+            });
+            return true;
+        } catch (e) { return false; }
+    }
+
+    async addMoodEntry(entry) {
+        if (!this.currentUser?.uid) return false;
+        try {
+            await addDoc(collection(db, `users/${this.currentUser.uid}/moods`), entry);
+            return true;
+        } catch (e) { return false; }
+    }
+
+    // --- COMMUNITY & ENGAGEMENT ---
+    async trackEngagement() {
+        if (!this.currentUser?.uid || !this.currentUser.loggedIn) return;
+        try {
+            const userRef = doc(db, "users", this.currentUser.uid);
+            await updateDoc(userRef, {
+                engagementCount: increment(1)
+            });
+            // Update local state
+            this.currentUser.engagementCount = (this.currentUser.engagementCount || 0) + 1;
+            if (window.updateUserUI) window.updateUserUI();
+        } catch (e) {
+            console.error("Error tracking engagement:", e);
+        }
+    }
+
+    async acceptCommunityRules() {
+        if (!this.currentUser?.uid || !this.currentUser.loggedIn) return;
+        try {
+            const userRef = doc(db, "users", this.currentUser.uid);
+            await updateDoc(userRef, {
+                hasAcceptedRules: true
+            });
+            this.currentUser.hasAcceptedRules = true;
+            if (window.updateUserUI) window.updateUserUI();
+        } catch (e) {
+            console.error("Error accepting rules:", e);
+        }
+    }
+
+    // --- ONLINE STATUS ---
+    async updateUserStatus(status) {
+        if (!this.currentUser?.uid || !this.currentUser.loggedIn) return;
+        try {
+            const statusRef = doc(db, "online_users", this.currentUser.uid);
+            await setDoc(statusRef, {
+                uid: this.currentUser.uid,
+                name: this.currentUser.name || 'Zanmi',
+                status: status || 'online',
+                lastActive: new Date().toISOString()
+            }, { merge: true });
+        } catch (e) {
+            // Silencing as warning for production stability
+            console.warn("⚠️ Online status update skipped:", e.message);
+        }
+    }
+
+    listenToOnlineUsers(callback) {
+        const q = query(collection(db, "online_users"), where("status", "==", "online"), limit(50));
+        return onSnapshot(q, (snapshot) => {
+            const users = [];
+            snapshot.forEach(doc => users.push(doc.data()));
+            callback(users);
+        }, (error) => {
+            if (error.message.includes("permissions")) {
+                console.info("ℹ️ Online users list restricted by permissions.");
+            } else {
+                console.warn("Listen Online Users Error:", error.message);
+            }
+            callback([]);
+        });
     }
 }

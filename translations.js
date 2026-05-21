@@ -9,8 +9,8 @@ const translations = {
         settings: "Pwofil",
 
         // Hero
-        heroTitle: "Vin apiye w sou yon zepòl",
-        heroSubtitle: "Yon espas an sekirite pou pataje, grandi, ak jwenn sipò nan men yon kominote ki konprann ou.",
+        heroTitle: "Ou merite yon <span class='gold-text'>Zepòl</span> pou w apiye.",
+        heroSubtitle: "Yon espas trankil kote chak mo tounen espwa. Nou la pou nou koute w ak sipòte w, chak poze.",
         getStarted: "Kòmanse Pataje",
 
         // Features
@@ -129,8 +129,8 @@ const translations = {
         settings: "Profil",
 
         // Hero
-        heroTitle: "Appuyez-vous sur un pilier",
-        heroSubtitle: "Un espace sécurisé pour partager, grandir et trouver du soutien auprès d'une communauté qui vous comprend.",
+        heroTitle: "Vous méritez un <span class='gold-text'>Zepòl</span> sur qui vous appuyer.",
+        heroSubtitle: "Un espace tranquille où chaque mot devient espoir. Nous sommes là pour vous écouter et vous soutenir.",
         getStarted: "Commencer à Partager",
 
         // Features
@@ -241,234 +241,199 @@ const translations = {
         logoutBtn: "Déconnecter le Compte"
     },
     en: {
+        // ... (existing en translations)
+        logoutBtn: "Disconnect Account"
+    },
+    es: {
         // Navigation
-        home: "Home",
-        community: "Community",
-        resources: "Resources",
-        share: "Share",
-        settings: "Profile",
+        home: "Inicio",
+        community: "Comunidad",
+        resources: "Recursos",
+        share: "Compartir",
+        settings: "Perfil",
 
         // Hero
-        heroTitle: "Lean on a pillar",
-        heroSubtitle: "A safe space to share, grow, and find support from a community that understands you.",
-        getStarted: "Start Sharing",
+        heroTitle: "Te mereces un <span class='gold-text'>Zepòl</span> en quien apoyarte.",
+        heroSubtitle: "Un espacio tranquilo donde cada palabra se convierte en esperanza. Estamos aquí para escucharte y apoyarte.",
+        getStarted: "Empezar a Compartir",
 
         // Features
-        communityTitle: "Community",
-        communityDesc: "Talk with others.",
-        resourcesTitle: "Resources",
-        resourcesDesc: "Articles and Tips.",
-        moodJournalTitle: "Mood Journal",
-        moodJournalDesc: "How are you feeling?",
-        wellbeingTestTitle: "Wellbeing Test",
-        wellbeingTestDesc: "Take a quick check.",
+        communityTitle: "Comunidad",
+        communityDesc: "Habla con otros.",
+        resourcesTitle: "Recursos",
+        resourcesDesc: "Artículos y Consejos.",
+        moodJournalTitle: "Diario de Humor",
+        moodJournalDesc: "¿Cómo te sientes?",
+        wellbeingTestTitle: "Test de Bienestar",
+        wellbeingTestDesc: "Haz un pequeño control.",
+
         // Auth
-        login: "Login",
-        register: "Register",
-        logout: "Logout",
-        fullName: "Full Name",
-        email: "Email",
-        phone: "Phone Number",
-        username: "Username",
-        password: "Password",
-        confirmPassword: "Confirm Password",
-        createAccount: "Create Account",
-        haveAccount: "Already have an account?",
-        noAccount: "Don't have an account?",
-        loginTitle: "Login",
-        registerTitle: "Create Account",
+        login: "Iniciar Sesión",
+        register: "Registrarse",
+        logout: "Cerrar Sesión",
+        fullName: "Nombre completo",
+        email: "Correo electrónico",
+        phone: "Número de teléfono",
+        username: "Nombre de usuario",
+        password: "Contraseña",
+        confirmPassword: "Confirmar contraseña",
+        createAccount: "Crear cuenta",
+        haveAccount: "¿Ya tienes una cuenta?",
+        noAccount: "¿No tienes una cuenta?",
+        loginTitle: "Iniciar Sesión",
+        registerTitle: "Crear Cuenta",
 
         // Share
-        shareTitle: "Share Your Thoughts",
-        shareSubtitle: "A free space for you to express yourself without fear.",
-        anonymous: "Anonymous",
-        useName: "Use My Name",
-        yourName: "Your name...",
-        howFeel: "How are you feeling?",
-        happy: "Happy",
+        shareTitle: "Comparte tus pensamientos",
+        shareSubtitle: "Un espacio libre para expresarte sin miedo.",
+        anonymous: "Anónimo",
+        useName: "Usar mi nombre",
+        yourName: "Tu nombre...",
+        howFeel: "¿Cómo te sientes?",
+        happy: "Feliz",
         neutral: "Neutral",
-        sad: "Sad",
-        anxious: "Anxious",
-        tired: "Tired",
-        yourMessage: "Your message",
-        sharePlaceholder: "Explain what's happening...",
-        safetyNote: "We don't judge here. What you write is safe.",
-        cancel: "Cancel",
-        share: "Share",
+        sad: "Triste",
+        anxious: "Ansioso",
+        tired: "Cansado",
+        yourMessage: "Tu mensaje",
+        sharePlaceholder: "Explica lo que está pasando...",
+        safetyNote: "No juzgamos aquí. Lo que escribes está seguro.",
+        cancel: "Cancelar",
+        share: "Compartir",
 
         // Settings
-        account: "My Account",
-        language: "Language",
-        chooseLang: "Choose your language",
-        appearance: "Appearance",
-        darkMode: "Dark Mode",
-        data: "Data",
-        deleteData: "Delete All Data",
+        account: "Mi Cuenta",
+        language: "Idioma",
+        chooseLang: "Elige tu idioma",
+        appearance: "Apariencia",
+        darkMode: "Modo Oscuro",
+        data: "Datos",
+        deleteData: "Eliminar todos los datos",
 
         // Chatbot
         botName: "Yon Zepòl",
-        botGreeting: "Hello! I'm your assistant. How can I help you today?",
-        typeMessage: "Type here...",
-        send: "Send",
+        botGreeting: "¡Hola! Soy tu asistente. ¿Cómo puedo ayudarte hoy?",
+        typeMessage: "Escribe aquí...",
+        send: "Enviar",
 
         // Resources
-        libraryTitle: "Resource Library",
-        all: "All",
-        articles: "Articles",
+        libraryTitle: "Biblioteca de Recursos",
+        all: "Todo",
+        articles: "Artículos",
         videos: "Videos",
-        exercises: "Exercises",
+        exercises: "Ejercicios",
 
         // Footer
-        about: "About Zepòl",
-        aboutDesc: "A friend always there for you.",
-        quickLinks: "Quick Links",
-        contact: "Contact",
-        emailLabel: "Email",
-        emergency: "Emergency",
-        copyright: "All rights reserved",
+        about: "Sobre Zepòl",
+        aboutDesc: "Un amigo siempre ahí para ti.",
+        quickLinks: "Enlaces Rápidos",
+        contact: "Contacto",
+        emailLabel: "Correo electrónico",
+        emergency: "Emergencia",
+        copyright: "Todos los derechos reservados",
 
         // Modals
-        emergencyTitle: "Need Emergency Help?",
-        emergencyDesc: "You're not alone. There are people who want to help you right now.",
-        call: "Call",
+        emergencyTitle: "¿Necesitas ayuda de emergencia?",
+        emergencyDesc: "No estás solo. Hay personas que quieren ayudarte ahora.",
+        call: "Llamar",
         chatWhatsApp: "Chat WhatsApp",
 
         // Wellbeing Test
-        testTitle: "Wellbeing Test",
-        testDesc: "Take a moment to check how you're feeling today.",
-        startTest: "Start",
+        testTitle: "Test de Bienestar",
+        testDesc: "Tómate un momento para comprobar cómo te sientes hoy.",
+        startTest: "Comenzar",
 
         // Community
-        supportGroup: "Community Support Group",
-        supportDesc: "Talk with others who understand you. No judgment.",
-        typeMessage: "Say something encouraging...",
-        send: "Send",
+        supportGroup: "Grupo de Apoyo Comunitario",
+        supportDesc: "Habla con otros que te entienden. Sin juicios.",
+        typeMessage: "Di algo alentador...",
+        send: "Enviar",
 
         // Dashboard
-        progress: "Your Wellbeing Progress",
-        takeCare: "Little by little, you're advancing.",
-        wellbeingScore: "Wellbeing Level",
-        lastCheck: "Last check",
-        moodEvolution: "Mood Evolution",
-        streak: "Daily Streak",
-        keepGoing: "Great job! Keep taking care of yourself.",
+        progress: "Tu Progreso de Bienestar",
+        takeCare: "Poco a poco, vas avanzando.",
+        wellbeingScore: "Nivel de Bienestar",
+        lastCheck: "Última comprobación",
+        moodEvolution: "Evolución del Humor",
+        streak: "Racha Diaria",
+        keepGoing: "¡Buen trabajo! Sigue cuidándote.",
 
         // Misc
-        or: "or",
-        social: "Stay Connected",
-        emergency: "Emergency & Help",
-        logoutBtn: "Disconnect Account"
+        or: "o",
+        social: "Mantente Conectado",
+        emergency: "Emergencia y Ayuda",
+        logoutBtn: "Cerrar la Cuenta"
     }
 };
 
 // Current language
-let currentLang = 'ht';
+let currentLang = localStorage.getItem('selectedLang') || 'ht';
 
 // Function to get translation
 function t(key) {
-    return translations[currentLang][key] || key;
+    return (translations[currentLang] && translations[currentLang][key]) || key;
 }
 
-// Function to change language
+// Function to change language (Hijacked for Google Translate)
 function changeLanguage(lang) {
-    if (translations[lang]) {
-        currentLang = lang;
-        updateUI();
+    if (!lang) return;
+    
+    // 1. Update our local state
+    currentLang = lang;
+    localStorage.setItem('selectedLang', lang);
+    
+    // 2. Trigger Google Translate
+    try {
+        const gtCombo = document.querySelector('.goog-te-combo');
+        if (gtCombo) {
+            gtCombo.value = lang;
+            gtCombo.dispatchEvent(new Event('change'));
+        } else {
+            console.warn("Google Translate widget not ready yet.");
+            // Fallback to basic UI update if GT fails
+            updateUI();
+        }
+    } catch (e) {
+        console.error("Error triggering translation:", e);
     }
+    
+    // 3. Update any specific elements that GT might miss or that need manual handling
+    updateUI();
 }
 
-// Function to update UI with current language
+// Function to update UI with current language (Basic mapping for core elements)
 function updateUI() {
-    // Navigation
-    document.querySelectorAll('.nav-links li').forEach((li) => {
-        const view = li.dataset.view;
-        if (translations[currentLang][view]) {
-            const iconClass = li.querySelector('i').className;
-            li.innerHTML = `<i class="${iconClass}"></i> ${t(view)}`;
+    if (!translations[currentLang]) return;
+    
+    // Update the dropdown value to match current state
+    const select = document.getElementById('profile-lang-select');
+    if (select) select.value = currentLang;
+
+    // Small manual updates for elements with complex structures
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        const translated = t(key);
+        if (translated !== key) {
+            if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                el.placeholder = translated;
+            } else {
+                el.innerHTML = translated;
+            }
         }
     });
-
-    // Hero section
-    const heroTitle = document.querySelector('.hero-text h2');
-    if (heroTitle) heroTitle.textContent = t('heroTitle');
-
-    const heroSubtitle = document.querySelector('.hero-text p');
-    if (heroSubtitle) heroSubtitle.textContent = t('heroSubtitle');
-
-    const ctaBtn = document.querySelector('.cta-btn');
-    if (ctaBtn) ctaBtn.textContent = t('getStarted');
-
-    // Features
-    const features = document.querySelectorAll('.card');
-    if (features.length >= 4) {
-        features[0].querySelector('h3').textContent = t('communityTitle');
-        features[0].querySelector('p').textContent = t('communityDesc');
-        features[1].querySelector('h3').textContent = t('resourcesTitle');
-        features[1].querySelector('p').textContent = t('resourcesDesc');
-        features[2].querySelector('h3').textContent = t('moodJournalTitle');
-        features[2].querySelector('p').textContent = t('moodJournalDesc');
-        features[3].querySelector('h3').textContent = t('wellbeingTestTitle');
-        features[3].querySelector('p').textContent = t('wellbeingTestDesc');
-    }
-
-    // Auth buttons
-    const authBtn = document.getElementById('auth-btn');
-    if (authBtn) authBtn.textContent = t('login');
-
-    const registerBtn = document.getElementById('register-btn');
-    if (registerBtn) registerBtn.textContent = t('register');
-
-    // Modals
-    const loginModal = document.getElementById('auth-modal');
-    if (loginModal) {
-        const title = loginModal.querySelector('h2');
-        if (title) title.textContent = t('loginTitle');
-        const inputs = loginModal.querySelectorAll('input');
-        if (inputs[0]) inputs[0].placeholder = t('email') + ' ' + t('or').toLowerCase() + ' ' + t('phone').toLowerCase();
-        if (inputs[1]) inputs[1].placeholder = t('password');
-        const btn = loginModal.querySelector('button.btn-primary');
-        if (btn) btn.textContent = t('login');
-    }
-
-    const registerModal = document.getElementById('register-modal');
-    if (registerModal) {
-        const title = registerModal.querySelector('h2');
-        if (title) title.textContent = t('registerTitle');
-        const labels = registerModal.querySelectorAll('label');
-        labels.forEach(label => {
-            const forAttr = label.getAttribute('for');
-            if (forAttr === 'reg-fullname') label.textContent = t('fullName') + ' *';
-            if (forAttr === 'reg-username') label.textContent = t('username') + ' *';
-            if (forAttr === 'reg-password') label.textContent = t('password') + ' *';
-            if (forAttr === 'reg-confirm') label.textContent = t('confirmPassword') + ' *';
-        });
-        const regBtn = registerModal.querySelector('.btn-register');
-        if (regBtn) regBtn.innerHTML = `<i class="fas fa-user-plus"></i> ${t('createAccount')}`;
-    }
-
-    // Settings
-    const settingsView = document.getElementById('view-settings');
-    if (settingsView) {
-        const title = settingsView.querySelector('.view-header h2');
-        if (title) title.textContent = t('settings');
-        const sections = settingsView.querySelectorAll('.setting-section h3');
-        if (sections[0]) sections[0].textContent = '📝 ' + t('share') + ' Drafts';
-        if (sections[1]) sections[1].textContent = '⚙️ ' + t('account');
-        const logoutBtn = settingsView.querySelector('.btn-danger');
-        if (logoutBtn) logoutBtn.innerHTML = `<i class="fas fa-sign-out-alt"></i> ${t('logoutBtn')}`;
-    }
-
-    // Footer
-    const footerSections = document.querySelectorAll('.footer-section');
-    if (footerSections.length >= 4) {
-        if (footerSections[0].querySelector('h4')) footerSections[0].querySelector('h4').textContent = 'Zepòl 🇭🇹';
-        if (footerSections[1].querySelector('h4')) footerSections[1].querySelector('h4').textContent = t('home');
-        if (footerSections[2].querySelector('h4')) footerSections[2].querySelector('h4').textContent = t('emergency');
-        if (footerSections[3].querySelector('h4')) footerSections[3].querySelector('h4').textContent = t('social');
-    }
 }
+
+// Initialize on load
+window.addEventListener('load', () => {
+    // If a language was saved, apply it after a small delay to let GT load
+    const savedLang = localStorage.getItem('selectedLang');
+    if (savedLang && savedLang !== 'ht') {
+        setTimeout(() => changeLanguage(savedLang), 2000);
+    }
+});
 
 // Export functions
 window.t = t;
 window.changeLanguage = changeLanguage;
 window.updateUI = updateUI;
+

@@ -1,4 +1,4 @@
-import { NotificationSystem, openModal, closeModal } from './ui.js';
+import { NotificationSystem, openModal } from './ui.js?v=18.0.43-MOOD-ENHANCED';
 
 export function validateEmail(email) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
