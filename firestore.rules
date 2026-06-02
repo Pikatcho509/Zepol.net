@@ -2,24 +2,29 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- HELPER FUNCTIONS ---
-    function isSignedIn() {
-      return request.auth != null;
-    }
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return request.auth.uid == userId; }
+    function isMyData() { return request.resource.data.userId == request.auth.uid; }
 
-    // --- USERS COLLECTION (Recursive Access for Owner) ---
+    // ── USERS ────────────────────────────────────────────────────
     match /users/{userId} {
-      allow read, write: if isSignedIn() && isOwner(userId);
-      
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isOwner(userId);
+
       match /notifications/{notifId} {
-        allow read, write: if isSignedIn() && isOwner(userId);
-        allow create: if isSignedIn(); // others can send notifs
+        allow read, delete: if isSignedIn() && isOwner(userId);
+        allow create, update: if isSignedIn(); // others can send notifs
       }
 
       match /blocked_users/{blockedId} {
+        allow read, write: if isSignedIn() && isOwner(userId);
+      }
+
+      match /bookmarks/{bookmarkId} {
+        allow read, write: if isSignedIn() && isOwner(userId);
+      }
+
+      match /mood_logs/{logId} {
         allow read, write: if isSignedIn() && isOwner(userId);
       }
 
@@ -28,56 +33,114 @@ service cloud.firestore {
       }
     }
 
-    // --- PUBLIC CONTENT ---
-
-    // Community Posts
+    // ── PUBLIC POSTS ─────────────────────────────────────────────
     match /posts/{postId} {
       allow read: if true;
       allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn() && isOwner(resource.data.userId);
+      allow update: if isSignedIn(); // likes, reactions, comments
+      allow delete: if isSignedIn() && (
+        resource.data.authorId == request.auth.uid ||
+        resource.data.userId  == request.auth.uid
+      );
     }
 
-    // Success Stories (Vwa Viktwa)
+    // ── SUCCESS STORIES ──────────────────────────────────────────
     match /success_stories/{storyId} {
       allow read: if true;
       allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
     }
 
-    // Support Chat (Global)
+    // ── CONFESSIONS ANONYMES ─────────────────────────────────────
+    match /confessions/{confId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      // No update/delete — confessions are immutable
+    }
+
+    // ── SUPPORT CHAT ─────────────────────────────────────────────
     match /support_chat/{messageId} {
       allow read: if true;
       allow create: if isSignedIn();
     }
 
-    // --- NEW COLLECTIONS ---
-    // Online Users
+    // ── SUPPORT JAR ──────────────────────────────────────────────
+    match /support_jar/{noteId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+    }
+
+    // ── GRATITUDE JAR ────────────────────────────────────────────
+    match /gratitude/{noteId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isMyData();
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // ── ONLINE USERS ─────────────────────────────────────────────
     match /online_users/{userId} {
       allow read: if isSignedIn();
       allow write: if isSignedIn() && isOwner(userId);
     }
 
-    // Direct Messages
+    // ── DIRECT MESSAGES ──────────────────────────────────────────
     match /direct_messages/{messageId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+      allow read: if isSignedIn() && (
+        resource.data.senderId    == request.auth.uid ||
+        resource.data.recipientId == request.auth.uid
+      );
+      allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.recipientId == request.auth.uid; // mark read
+      allow delete: if isSignedIn() && (
+        resource.data.senderId    == request.auth.uid ||
+        resource.data.recipientId == request.auth.uid
+      );
     }
 
-    // DLS Lobby
+    // ── DLS LOBBY ────────────────────────────────────────────────
     match /dls_lobby/{matchId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
       allow update: if isSignedIn();
+      allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
     }
 
-    // --- WELLNESS DATA ---
-    // Gratitude Jar
-    match /gratitude/{noteId} {
-      allow read, write: if isSignedIn() && isOwner(resource.data.userId);
+    // ── MOOD LOGS (global collection) ────────────────────────────
+    match /mood_logs/{logId} {
+      allow read, write: if isSignedIn() && (
+        resource == null || resource.data.userId == request.auth.uid
+      );
+      allow create: if isSignedIn() && isMyData();
     }
 
-    // Default deny all others
+    // ── REACTIONS ────────────────────────────────────────────────
+    match /reactions/{reactionId} {
+      allow read: if true;
+      allow create, update: if isSignedIn();
+    }
+
+    // ── GOALS ────────────────────────────────────────────────────
+    match /goals/{goalId} {
+      allow read, write: if isSignedIn() && (
+        resource == null || resource.data.userId == request.auth.uid
+      );
+      allow create: if isSignedIn() && isMyData();
+    }
+
+    // ── COMMUNITY RULES ACCEPTED ─────────────────────────────────
+    match /community_accepted/{userId} {
+      allow read, write: if isSignedIn() && isOwner(userId);
+    }
+
+    // ── NOTIFICATIONS (top-level) ────────────────────────────────
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+    }
+
+    // ── DEFAULT DENY ─────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;
     }

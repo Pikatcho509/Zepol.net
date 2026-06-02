@@ -226,15 +226,27 @@ export function renderPosts(posts, containerId = 'posts-feed') {
                         <button class="tweet-btn" onclick="window.handleShare('${post.id}')" style="background:none; border:none; color:inherit; cursor:pointer; display:flex; align-items:center; gap:8px; font-size:14px; transition: color 0.2s;">
                             <i class="fas fa-retweet" style="transition: transform 0.2s;"></i>
                         </button>
-                        <button class="tweet-btn" onclick="window.handleLike('${post.id}')" style="background:none; border:none; color:inherit; cursor:pointer; display:flex; align-items:center; gap:8px; font-size:14px; transition: color 0.2s;">
-                            <i class="far fa-heart" style="transition: transform 0.2s;"></i> <span style="color: ${post.likes > 0 ? '#f91880' : 'inherit'}">${post.likes || ''}</span>
-                        </button>
                         ${postAuthorId !== 'guest' && postAuthorId !== (window.currentUserId || 'guest') ? `
                         <button class="tweet-btn" onclick="window.openMessageTo('${postAuthorId}', '${author}')" style="background:none; border:none; color:inherit; cursor:pointer; display:flex; align-items:center; gap:8px; font-size:14px; transition: color 0.2s;">
                             <i class="far fa-envelope"></i>
                         </button>` : ''}
+                        <button class="tweet-btn" onclick="window.reportPost('${post.id}')" style="background:none; border:none; color:inherit; cursor:pointer; display:flex; align-items:center; gap:8px; font-size:14px; transition: color 0.2s;" title="Siyale pòs sa a">
+                            <i class="fas fa-flag"></i>
+                        </button>
                     </div>
-                    
+                    <!-- Reactions Row -->
+                    <div class="reactions-bar" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:12px; padding:10px 0; border-top:1px solid #f1f5f9;">
+                        ${['❤️','🤗','🙏','💪','🕊️'].map(emoji => {
+                            const key = emoji;
+                            const count = (post.reactions && post.reactions[key]) || 0;
+                            return `<button onclick="window.handleReaction('${post.id}','${key}')" class="reaction-pill" data-postid="${post.id}" data-emoji="${key}" style="background:${count>0?'#fef2f2':'#f8fafc'}; border:1px solid ${count>0?'#fecaca':'#e2e8f0'}; padding:5px 12px; border-radius:20px; font-size:14px; cursor:pointer; display:flex; align-items:center; gap:5px; transition:all 0.2s;">
+                                ${key} <span style="font-size:12px; font-weight:600; color:#6b7280;">${count||''}</span>
+                            </button>`;
+                        }).join('')}
+                    </div>
+                    <!-- Keep this comment to close tweet-actions below -->
+                    <!-- Keep this comment to close tweet-actions below -->
+
                     <div style="margin-top: 15px;">
                         ${commentsHtml}
                     </div>

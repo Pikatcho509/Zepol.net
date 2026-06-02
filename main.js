@@ -39,9 +39,57 @@ window.startBreathing = startBreathing;
 window.renderLibraryUI = renderLibraryUI;
 window.renderMessagingUI = renderMessagingUI;
 
+window.toggleEmergencyMode = () => {
+    const overlay = document.getElementById('emergency-overlay');
+    if (!overlay) return;
+    
+    if (overlay.classList.contains('hidden')) {
+        overlay.classList.remove('hidden');
+        // Try to play soothing audio if available
+        const bgMusic = document.getElementById('bg-music');
+        if (bgMusic) {
+            bgMusic.src = "https://www.soundjay.com/nature/sounds/rain-03.mp3"; // Soothing rain
+            bgMusic.loop = true;
+            bgMusic.volume = 0.5;
+            bgMusic.play().catch(e => console.log("Audio play prevented:", e));
+        }
+    } else {
+        overlay.classList.add('hidden');
+        const bgMusic = document.getElementById('bg-music');
+        if (bgMusic) bgMusic.pause();
+    }
+};
+
+// --- BOOKMARK SYSTEM (localStorage) ---
+const BOOKMARK_KEY = 'zepol_bookmarks';
+
+function getBookmarks() {
+    try { return JSON.parse(localStorage.getItem(BOOKMARK_KEY) || '{}'); }
+    catch(e) { return {}; }
+}
+
+window.isArticleBookmarked = (id) => {
+    return !!getBookmarks()[id];
+};
+
+window.toggleBookmark = (type, id) => {
+    const bookmarks = getBookmarks();
+    if (bookmarks[id]) {
+        delete bookmarks[id];
+        NotificationSystem.show('Retire nan favori yo.', 'info');
+    } else {
+        bookmarks[id] = { type, id, savedAt: new Date().toISOString() };
+        NotificationSystem.show('✅ Ajoute nan favori w yo!', 'success');
+    }
+    localStorage.setItem(BOOKMARK_KEY, JSON.stringify(bookmarks));
+    // Refresh the bookmark button color in the UI
+    const btn = document.querySelector(`.bookmark-btn[onclick*="${id}"]`);
+    if (btn) btn.style.color = bookmarks[id] ? '#ff6b6b' : (type === 'book' ? '#475569' : '#999');
+};
+
 // --- MISSING FUNCTIONS IMPLEMENTATION ---
 window.saveDraftFromShare = () => {
-    const text = document.getElementById('share-text-input-page')?.value;
+    const text = (document.getElementById('share-text-input-page') || document.getElementById('share-text-input'))?.value;
     if (!text) return NotificationSystem.show("Pa gen anyen pou sove.", "warning");
     localStorage.setItem('zepol_draft_' + Date.now(), text);
     NotificationSystem.show("Bouyon sove avèk siksè!", "success");
@@ -1403,11 +1451,21 @@ window.nextQuizStep = (step) => {
 window.finishQuiz = (resultType) => {
     // Hide last step
     document.getElementById('quiz-step-4')?.classList.add('hidden');
-    // Show gate
-    document.getElementById('quiz-result-gate')?.classList.remove('hidden');
 
     // Save Result for post-login
     localStorage.setItem('zepol_pending_result', resultType || 'general');
+
+    // If user reports despair, show immediate crisis support BEFORE registration gate
+    if (resultType === 'despair') {
+        closeModal('guest-quiz-modal');
+        setTimeout(() => {
+            openModal('crisis-support-modal');
+        }, 300);
+        return;
+    }
+
+    // Show gate for other results
+    document.getElementById('quiz-result-gate')?.classList.remove('hidden');
 };
 
 window.checkPendingQuizResult = () => {
@@ -1585,11 +1643,13 @@ window.updateUserUI = () => {
     // Dynamic Greeting
     const hour = new Date().getHours();
     const greetingText = document.getElementById('greeting-text');
-    if (greetingText) {
-        const isMorning = hour < 12;
-        const isAfternoon = hour >= 12 && hour < 18;
-        greetingText.innerText = isMorning ? "Bonjou" : (isAfternoon ? "Bon apremidi" : "Bonswa");
-    }
+    const dynamicGreeting = document.getElementById('dynamic-greeting');
+    const isMorning = hour < 12;
+    const isAfternoon = hour >= 12 && hour < 18;
+    const greetingMsg = isMorning ? "Bonjou" : (isAfternoon ? "Bon apremidi" : "Bonswa");
+    
+    if (greetingText) greetingText.innerText = greetingMsg;
+    if (dynamicGreeting) dynamicGreeting.innerText = greetingMsg;
 
     const lockOverlay = document.getElementById('auth-lock-overlay');
     const communityLock = document.getElementById('community-lock-overlay');
@@ -1690,8 +1750,23 @@ window.switchCommunityTab = (tab) => {
     tabs.forEach(t => t.classList.remove('active'));
     sections.forEach(s => s.classList.add('hidden'));
 
-    document.querySelector(`.comm-tab[onclick*="${tab}"]`).classList.add('active');
-    document.getElementById(`tab-${tab}`).classList.remove('hidden');
+    const activeTab = document.querySelector(`.comm-tab[onclick*="${tab}"]`);
+    if (activeTab) activeTab.classList.add('active');
+    const section = document.getElementById(`tab-${tab}`);
+    if (section) section.classList.remove('hidden');
+
+    // Load confessions on demand
+    if (tab === 'confession') {
+        const feed = document.getElementById('confession-feed');
+        if (feed && feed.children.length <= 1) {
+            const confessions = (window.currentCommunityPosts || []).filter(p => p.type === 'confession');
+            if (confessions.length > 0) {
+                renderPosts(confessions, 'confession-feed');
+            } else {
+                feed.innerHTML = '<div style="text-align:center;padding:30px;color:#94a3b8;"><i class="fas fa-theater-masks" style="font-size:2rem;margin-bottom:10px;"></i><p>Pa gen konfesyon ankò. Soyez premye!</p></div>';
+            }
+        }
+    }
 };
 
 function renderCommunityOnlineList(users) {
@@ -2112,12 +2187,64 @@ window.blockUser = async (userIdToBlock) => {
 
 window.handleLike = async (postId) => {
     const user = dataManager.getUser();
+    if (!user.loggedIn) { openModal('auth-modal'); return; }
+    await dataManager.likePost(postId);
+    await dataManager.trackEngagement();
+};
+
+// --- REACTIONS SYSTEM ---
+window.handleReaction = async (postId, emoji) => {
+    const user = dataManager.getUser();
+    if (!user.loggedIn) { openModal('auth-modal'); return; }
+
+    // Track locally
+    const key = `zepol_react_${postId}_${user.uid || 'guest'}`;
+    const prev = localStorage.getItem(key);
+    if (prev === emoji) {
+        localStorage.removeItem(key);
+    } else {
+        localStorage.setItem(key, emoji);
+    }
+
+    // Update post reactions in Firebase
+    try {
+        if (dataManager.addReaction) {
+            await dataManager.addReaction(postId, emoji);
+        }
+    } catch (e) {
+        console.warn('Reaction sync failed:', e);
+    }
+
+    // Optimistic UI update
+    const pills = document.querySelectorAll(`.reaction-pill[data-postid="${postId}"]`);
+    pills.forEach(pill => {
+        const pillEmoji = pill.dataset.emoji;
+        const countSpan = pill.querySelector('span');
+        if (!countSpan) return;
+        const current = parseInt(countSpan.textContent) || 0;
+        if (pillEmoji === emoji) {
+            const newCount = prev === emoji ? Math.max(0, current - 1) : current + 1;
+            countSpan.textContent = newCount > 0 ? newCount : '';
+            pill.style.background = (prev !== emoji) ? '#fef2f2' : '#f8fafc';
+            pill.style.borderColor = (prev !== emoji) ? '#fecaca' : '#e2e8f0';
+            pill.style.transform = 'scale(1.15)';
+            setTimeout(() => pill.style.transform = 'scale(1)', 200);
+        }
+    });
+
+    await dataManager.trackEngagement();
+};
+
+window.reportPost = (postId) => {
+    const user = dataManager.getUser();
     if (!user.loggedIn) {
         openModal('auth-modal');
         return;
     }
-    await dataManager.likePost(postId);
-    await dataManager.trackEngagement();
+    if (confirm("Èske ou vle siyale pòs sa a pou kontni ki pa apwopriye?\n\nEkip moderasyon Zepòl la ap revize l.")) {
+        NotificationSystem.show("Mèsi! Nou resevwa rapò w la. Ekip moderasyon an ap gade sa.", "success");
+        // In production: dataManager.reportPost(postId, user.uid);
+    }
 };
 
 window.handleComment = (postId) => {
@@ -2308,6 +2435,633 @@ window.showAllHomePosts = function () {
 
 // Alias for HTML compatibility
 window.filterHomePosts = window.applyHomeFilter;
+
+// ============================================================
+//  ALL NEW FEATURES
+// ============================================================
+
+// --- COMMUNITY SEARCH + CATEGORY FILTER ---
+window.searchCommunityPosts = (query) => {
+    const posts = [...(window.currentCommunityPosts || []), ...(window.currentPublicPosts || [])];
+    const q = query.toLowerCase().trim();
+    if (!q) {
+        renderPosts(posts.slice(0, 20), 'struggles-feed');
+        return;
+    }
+    const filtered = posts.filter(p => {
+        const text = ((p.text || '') + (p.content || '') + (p.title || '')).toLowerCase();
+        return text.includes(q);
+    });
+    renderPosts(filtered, 'struggles-feed');
+};
+
+window.filterByCategory = (cat, btn) => {
+    document.querySelectorAll('.cat-chip').forEach(b => {
+        b.style.background = '#f8fafc'; b.style.color = '#374151';
+        b.style.borderColor = '#e2e8f0'; b.style.fontWeight = '400';
+    });
+    if (btn) {
+        btn.style.background = 'var(--primary)'; btn.style.color = 'white';
+        btn.style.borderColor = 'var(--primary)'; btn.style.fontWeight = '600';
+    }
+
+    const posts = [...(window.currentCommunityPosts || []), ...(window.currentPublicPosts || [])];
+    const catKeywords = {
+        'estrès': ['estrès', 'stress', 'travay', 'fatige', 'prese'],
+        'solitude': ['solitud', 'pou kont', 'izole', 'sèl', 'abandone'],
+        'dèy': ['dèy', 'mouri', 'pèdi', 'kè kraze', 'soufrans'],
+        'anksyete': ['anksyete', 'pè', 'laperèz', 'panike', 'enkyetid'],
+        'relasyon': ['relasyon', 'renmen', 'koup', 'maryaj', 'divòs', 'separe'],
+        'travay': ['travay', 'chèf', 'lajan', 'chomaj', 'karyè'],
+        'espwa': ['espwa', 'viktwa', 'byennèt', 'kontan', 'jwa', 'geri']
+    };
+
+    if (cat === 'all') {
+        renderPosts(posts.slice(0, 20), 'struggles-feed');
+        return;
+    }
+
+    const keywords = catKeywords[cat] || [cat];
+    const filtered = posts.filter(p => {
+        const text = ((p.text || '') + (p.content || '') + (p.category || '')).toLowerCase();
+        return keywords.some(k => text.includes(k)) || (p.category || '').toLowerCase() === cat;
+    });
+    renderPosts(filtered.length > 0 ? filtered : posts.slice(0, 10), 'struggles-feed');
+};
+
+// --- CONFESSION ANONYME ---
+window.submitConfession = async () => {
+    const input = document.getElementById('confession-input');
+    const cat = document.getElementById('confession-category')?.value || 'general';
+    const text = input?.value.trim();
+    if (!text || text.length < 10) return NotificationSystem.show('Ekri yon ti bagay anvan ou konfese.', 'warning');
+    if (window.detectDistress && window.detectDistress(text)) return;
+
+    const confession = {
+        text,
+        category: cat,
+        author: 'Anonim 🎭',
+        isAnonymous: true,
+        mood: cat,
+        likes: 0,
+        reactions: {},
+        comments: [],
+        type: 'confession',
+        timestamp: new Date().toISOString()
+    };
+
+    try {
+        await dataManager.addPost({ ...confession, type: 'community' });
+    } catch (e) {
+        console.warn('Confession sync failed:', e);
+    }
+
+    // Local fallback render
+    const feed = document.getElementById('confession-feed');
+    if (feed) {
+        const div = document.createElement('div');
+        div.style.cssText = 'background:white; border:1px solid #ede9fe; border-radius:14px; padding:18px; border-left:4px solid #8b5cf6;';
+        div.innerHTML = `
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                <div style="width:36px;height:36px;background:#8b5cf6;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:16px;">🎭</div>
+                <div><strong style="color:#5b21b6;">Anonim</strong><br><span style="font-size:0.78rem;color:#94a3b8;">jis kounye a</span></div>
+                <span style="margin-left:auto;background:#f5f3ff;color:#7c3aed;padding:3px 10px;border-radius:12px;font-size:0.78rem;">${cat}</span>
+            </div>
+            <p style="color:#374151;margin:0;line-height:1.6;">${text}</p>
+        `;
+        feed.prepend(div);
+    }
+
+    input.value = '';
+    NotificationSystem.show('Ou konfese anonim. Ou pa pou kont ou. 💜', 'success');
+};
+
+// --- GOALS SYSTEM ---
+window.openGoalModal = () => {
+    document.getElementById('goal-title-input').value = '';
+    openModal('goal-modal');
+};
+
+window.saveGoal = () => {
+    const title = document.getElementById('goal-title-input')?.value.trim();
+    const cat = document.getElementById('goal-category-input')?.value || 'byennèt';
+    if (!title) return NotificationSystem.show('Ekri yon objektif anvan.', 'warning');
+
+    const goals = JSON.parse(localStorage.getItem('zepol_goals') || '[]');
+    goals.unshift({ id: Date.now(), title, cat, done: false, created: new Date().toISOString() });
+    if (goals.length > 10) goals.splice(10);
+    localStorage.setItem('zepol_goals', JSON.stringify(goals));
+
+    closeModal('goal-modal');
+    window.renderGoals();
+    NotificationSystem.show(`Objektif "${title}" anrejistre! ✓`, 'success');
+};
+
+window.completeGoal = (id) => {
+    const goals = JSON.parse(localStorage.getItem('zepol_goals') || '[]');
+    const idx = goals.findIndex(g => g.id === id);
+    if (idx === -1) return;
+
+    goals[idx].done = true;
+    goals[idx].completedAt = new Date().toISOString();
+    localStorage.setItem('zepol_goals', JSON.stringify(goals));
+
+    // Add to achievements
+    const achievements = JSON.parse(localStorage.getItem('zepol_achievements') || '[]');
+    achievements.unshift({ title: goals[idx].title, cat: goals[idx].cat, date: new Date().toISOString() });
+    if (achievements.length > 20) achievements.splice(20);
+    localStorage.setItem('zepol_achievements', JSON.stringify(achievements));
+
+    // Award points
+    const pts = parseInt(localStorage.getItem('zepol_points') || '0') + 10;
+    localStorage.setItem('zepol_points', pts);
+    const streak = parseInt(localStorage.getItem('zepol_streak') || '0') + 1;
+    localStorage.setItem('zepol_streak', streak);
+    const el = document.getElementById('streak-count');
+    if (el) el.textContent = streak;
+
+    window.renderGoals();
+    window.renderAchievements();
+    NotificationSystem.show(`🎉 Bravo! Ou fini "${goals[idx].title}" +10 pwen!`, 'success');
+};
+
+window.deleteGoal = (id) => {
+    let goals = JSON.parse(localStorage.getItem('zepol_goals') || '[]');
+    goals = goals.filter(g => g.id !== id);
+    localStorage.setItem('zepol_goals', JSON.stringify(goals));
+    window.renderGoals();
+};
+
+// --- DAILY CHALLENGES ---
+const DAILY_CHALLENGE_POOL = [
+    { id: 'water', text: 'Bwè 2 gode dlo 💧', points: 5 },
+    { id: 'outside', text: 'Pran 10 minit deyò ☀️', points: 10 },
+    { id: 'journal', text: 'Ekri 3 bagay pozitif 📝', points: 10 },
+    { id: 'breathe', text: 'Fè egzèsis respirasyon an 🌬️', points: 8 },
+    { id: 'smile', text: 'Di yon moun yon bagay jantiy 💙', points: 12 },
+    { id: 'sleep', text: 'Kouche anvan minwi aswè a 🌙', points: 8 },
+    { id: 'share', text: 'Pataje yon panse nan kominote a ✍️', points: 15 },
+    { id: 'gratitude', text: 'Ajoute yon bagay nan bokal gratitid la 🍯', points: 8 },
+    { id: 'phone', text: 'Pase 30 min san telefòn 📵', points: 10 },
+    { id: 'music', text: 'Koute yon mizik ki fè w relaks 🎵', points: 5 },
+];
+
+window.initDailyChallenges = () => {
+    const today = new Date().toDateString();
+    const saved = JSON.parse(localStorage.getItem('zepol_daily_challenges') || '{}');
+
+    if (saved.date !== today) {
+        const shuffled = [...DAILY_CHALLENGE_POOL].sort(() => 0.5 - Math.random()).slice(0, 4);
+        localStorage.setItem('zepol_daily_challenges', JSON.stringify({ date: today, challenges: shuffled, done: [] }));
+    }
+
+    const data = JSON.parse(localStorage.getItem('zepol_daily_challenges'));
+    const container = document.getElementById('daily-challenges-list');
+    if (!container) return;
+
+    container.innerHTML = data.challenges.map(c => `
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;border-radius:8px;background:${data.done.includes(c.id)?'#f0fdf4':'#f8fafc'};border:1px solid ${data.done.includes(c.id)?'#86efac':'#e2e8f0'};transition:all 0.2s;">
+            <input type="checkbox" id="challenge-${c.id}" ${data.done.includes(c.id)?'checked':''} style="width:18px;height:18px;cursor:pointer;accent-color:var(--primary);">
+            <span style="flex:1;font-size:0.92rem;color:var(--text-dark);${data.done.includes(c.id)?'text-decoration:line-through;color:#6b7280;':''}">${c.text}</span>
+            <span style="font-size:0.78rem;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;">+${c.points}</span>
+        </label>
+    `).join('');
+
+    const pts = parseInt(localStorage.getItem('zepol_points') || '0');
+    const el = document.getElementById('total-points-display');
+    if (el) el.textContent = pts;
+};
+
+window.validateDailyChallenges = () => {
+    const data = JSON.parse(localStorage.getItem('zepol_daily_challenges') || '{}');
+    if (!data.challenges) return;
+
+    let newPoints = 0;
+    const doneBefore = new Set(data.done || []);
+
+    data.challenges.forEach(c => {
+        const cb = document.getElementById(`challenge-${c.id}`);
+        if (cb && cb.checked && !doneBefore.has(c.id)) {
+            data.done = data.done || [];
+            data.done.push(c.id);
+            newPoints += c.points;
+        }
+    });
+
+    if (newPoints > 0) {
+        const total = parseInt(localStorage.getItem('zepol_points') || '0') + newPoints;
+        localStorage.setItem('zepol_points', total);
+        localStorage.setItem('zepol_daily_challenges', JSON.stringify(data));
+        const el = document.getElementById('total-points-display');
+        if (el) el.textContent = total;
+        NotificationSystem.show(`🎉 +${newPoints} pwen! Kontinye konsa!`, 'success');
+        window.initDailyChallenges();
+
+        // Check badges
+        setTimeout(() => window.loadBadges(), 500);
+    } else {
+        NotificationSystem.show('Chwazi yon defi anvan valide.', 'info');
+    }
+};
+
+window.renderGoals = () => {
+    const container = document.getElementById('goals-list');
+    if (!container) return;
+    const goals = JSON.parse(localStorage.getItem('zepol_goals') || '[]').filter(g => !g.done);
+    if (goals.length === 0) {
+        container.innerHTML = '<div style="color:#94a3b8;font-size:0.85rem;text-align:center;padding:10px;">Klike + pou ajoute yon objektif</div>';
+        return;
+    }
+    const catColors = { 'byennèt': '#10b981', 'sosyal': '#3b82f6', 'travay': '#f59e0b', 'sante': '#ef4444', 'kreyatif': '#8b5cf6' };
+    container.innerHTML = goals.map(g => `
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#f8fafc;border-radius:10px;border-left:3px solid ${catColors[g.cat]||'#6b7280'};">
+            <button onclick="window.completeGoal(${g.id})" style="background:none;border:2px solid #d1d5db;width:20px;height:20px;border-radius:50%;cursor:pointer;flex-shrink:0;transition:all 0.2s;" onmouseover="this.style.background='#10b981';this.style.borderColor='#10b981'" onmouseout="this.style.background='none';this.style.borderColor='#d1d5db'"></button>
+            <span style="flex:1;font-size:0.88rem;color:#374151;">${g.title}</span>
+            <button onclick="window.deleteGoal(${g.id})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px;padding:2px;flex-shrink:0;">✕</button>
+        </div>
+    `).join('');
+};
+
+window.renderAchievements = () => {
+    const container = document.getElementById('achievements-wall');
+    if (!container) return;
+    const achievements = JSON.parse(localStorage.getItem('zepol_achievements') || '[]').slice(0, 6);
+    if (achievements.length === 0) {
+        container.innerHTML = '<div style="color:#78350f;font-size:0.82rem;text-align:center;width:100%;padding:5px;">Ranpli objektif pou débloke rékonpans!</div>';
+        return;
+    }
+    container.innerHTML = achievements.map(a => `
+        <div title="${a.title}" style="background:white;border-radius:10px;padding:8px 10px;font-size:0.78rem;color:#92400e;font-weight:600;border:1px solid #fde68a;display:flex;align-items:center;gap:5px;">
+            🏆 ${a.title.substring(0, 18)}${a.title.length > 18 ? '...' : ''}
+        </div>
+    `).join('');
+};
+
+// --- BADGES SYSTEM ---
+const BADGES_DEF = [
+    { id: 'new', icon: '🌱', label: 'Kòmansan', desc: 'Byenveni nan Zepòl!', condition: () => true },
+    { id: 'post1', icon: '✍️', label: 'Premye Pataj', desc: 'Ou fè premye pataj ou', condition: () => (parseInt(localStorage.getItem('zepol_post_count')||'0') >= 1) },
+    { id: 'post5', icon: '💬', label: 'Mizajou', desc: '5 pataj fè', condition: () => (parseInt(localStorage.getItem('zepol_post_count')||'0') >= 5) },
+    { id: 'mood7', icon: '📊', label: 'Swivi Santi', desc: '7 jou de swivi santi', condition: () => (JSON.parse(localStorage.getItem('zepol_mood_logs')||'[]').length >= 7) },
+    { id: 'goal1', icon: '🎯', label: 'Premye Viktwa', desc: 'Ou fini premye objektif ou', condition: () => (JSON.parse(localStorage.getItem('zepol_achievements')||'[]').length >= 1) },
+    { id: 'goal5', icon: '🏆', label: 'Chanpyon', desc: '5 objektif fini', condition: () => (JSON.parse(localStorage.getItem('zepol_achievements')||'[]').length >= 5) },
+    { id: 'support', icon: '🤝', label: 'Pilye Kominote', desc: '10 reyaksyon bay lòt', condition: () => (parseInt(localStorage.getItem('zepol_reactions_given')||'0') >= 10) },
+    { id: 'streak7', icon: '🔥', label: 'Seri 7 Jou', desc: '7 jou konsekitif aktif', condition: () => (parseInt(localStorage.getItem('zepol_streak')||'0') >= 7) },
+    { id: 'journal5', icon: '📖', label: 'Ekrivèn', desc: '5 antre jounal', condition: () => (JSON.parse(localStorage.getItem('zepol_journal_entries')||'[]').length >= 5) },
+    { id: 'helper', icon: '💙', label: 'Sipò Depresyon', desc: 'Ou te ede yon moun nan kriz', condition: () => (parseInt(localStorage.getItem('zepol_helped_count')||'0') >= 1) },
+];
+
+window.loadBadges = () => {
+    const container = document.getElementById('badges-grid');
+    if (!container) return;
+    const user = dataManager.getUser();
+    container.innerHTML = BADGES_DEF.map(b => {
+        const earned = user.loggedIn ? b.condition() : false;
+        return `
+            <div style="background:${earned?'linear-gradient(135deg, #fef9c3 0%, #fde68a 100%)':'#f8fafc'}; border:2px solid ${earned?'#fbbf24':'#e2e8f0'}; border-radius:14px; padding:15px; text-align:center; opacity:${earned?1:0.5};">
+                <div style="font-size:2rem;margin-bottom:8px;">${b.icon}</div>
+                <div style="font-weight:700;font-size:0.85rem;color:${earned?'#92400e':'#6b7280'};">${b.label}</div>
+                <div style="font-size:0.72rem;color:${earned?'#78350f':'#94a3b8'};margin-top:4px;">${b.desc}</div>
+                ${earned ? '<div style="margin-top:6px;font-size:0.7rem;background:#fbbf24;color:white;border-radius:10px;padding:2px 6px;">✓ Debloke</div>' : ''}
+            </div>
+        `;
+    }).join('');
+};
+
+// --- FAQ MENTAL HEALTH ---
+const FAQ_DATA = [
+    { q: "Kisa depresyon ye egzakteman?", a: "Depresyon se yon maladi mantal reyèl ki afekte santiman, panse ak kò w. Li pi grav pase tristès nòmal. Li ka dire semèn oswa mwa si ou pa trete l. Li KAPAB geri ak bon sipò." },
+    { q: "Eske sante mantal konsène tout moun?", a: "Wi, absoliman. Sante mantal se yon pati enpòtan nan byennèt jeneral tout moun, tankou sante fizik. Pa gen okenn danje pou pale sou li." },
+    { q: "Kijan pou m ede yon moun ki gen depresyon?", a: "Koute l san jije. Evite di 'fò w forte' oswa 'se pa anyen'. Ofri w ede l pran randevou ak yon pwofesyonèl. Pran nouvèl li regilyèman. Prezans ou gen valè." },
+    { q: "Eske medyitasyon reyèlman ede?", a: "Wi, etid montre medyitasyon ka redui nivo kortizon (omimon stres) epi amelyore fason lespri trete emosyon. Menm 10 minit pa jou ka fè diferans." },
+    { q: "Ki diferans ki genyen ant anksyete ak stres?", a: "Stres se reyaksyon kò w avan yon defi espesifik (egzamen, travay). Anksyete se pè kontinye menm lè pa gen rezon klar. Si anksyete dure plis pase 6 mwa, chèche èd." },
+    { q: "Kijan mwen ka jwenn yon sikològ Ayiti?", a: "Ou ka kontakte MSPP (Ministè Sante), chèche nan anyè psymed-haiti.org, oswa klike sou 'Anyè Sikològ' nan Zepòl. Kèk ofri sesyon gratis oswa pri ba." },
+    { q: "Èske ale wè yon sikològ vle di m fou?", a: "Absoliman non! Ale wè yon sikològ vle di ou se yon moun ki prann sante w o serye. Se yon siy kouraj, pa fèblès. Anpil moun siksè gen yon terapis yo travay avèk." },
+    { q: "Kisa ki ta fè m rele 116 ?", a: "Rele 116 si w gen panse pou fè mal ak tèt ou oswa lòt moun, si w santi w an gwo danje emosyonèl, oswa si yon moun ou konnen semble an danje imedyat. Pa tann." },
+    { q: "Kijan pou m dòmi pi byen lè m anksye?", a: "Evite telefòn 1h anvan kouche. Fè respirasyon 4-7-8 anvan w dòmi. Fikse yon lè dòmi regilye. Louvri fenèt la yon ti moman. Ekri panse w avan w kouche." },
+    { q: "Eske lavi sosyal ka ede sante mantal?", a: "Wi! Koneksyon sosyal se youn nan pi gwo pwoteksyon kont depresyon. Menm yon ti konvèsasyon avèk yon zanmi ka amelyore imiyo ak santi byennèt ou." },
+];
+
+window.loadFAQ = () => {
+    const container = document.getElementById('faq-container');
+    if (!container || container.children.length > 0) return;
+    container.innerHTML = FAQ_DATA.map((item, i) => `
+        <div style="border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;">
+            <button onclick="window.toggleFAQ(this, ${i})" style="width:100%; padding:15px 18px; background:#f8fafc; border:none; text-align:left; cursor:pointer; font-weight:600; color:#1f2937; font-size:0.95rem; display:flex; justify-content:space-between; align-items:center;">
+                <span>${item.q}</span>
+                <i class="fas fa-chevron-down" style="transition:transform 0.2s; color:#6b7280; font-size:0.85rem;"></i>
+            </button>
+            <div id="faq-answer-${i}" style="display:none; padding:15px 18px; background:white; color:#4b5563; font-size:0.92rem; line-height:1.7; border-top:1px solid #e2e8f0;">${item.a}</div>
+        </div>
+    `).join('');
+};
+
+window.toggleFAQ = (btn, i) => {
+    const ans = document.getElementById(`faq-answer-${i}`);
+    const icon = btn.querySelector('i');
+    if (ans.style.display === 'none') {
+        ans.style.display = 'block';
+        if (icon) icon.style.transform = 'rotate(180deg)';
+    } else {
+        ans.style.display = 'none';
+        if (icon) icon.style.transform = 'rotate(0)';
+    }
+};
+
+// --- PSYCHOLOGIST DIRECTORY ---
+const PSYCHO_LIST = [
+    { name: "Dr. Marie-Claire Duvigneaud", spec: "Depresyon & Anksyete", location: "Pòtoprens", phone: "+509 3456-7890", available: true, price: "Varyab (gratis pou bezwen)" },
+    { name: "Ctr. Sante Mantal MSPP", spec: "Sèvis Piblik Nasyonal", location: "Tout Ayiti", phone: "116", available: true, price: "Gratis" },
+    { name: "Dr. Jean-Robert Celestin", spec: "Traumatizm & PTSD", location: "Pòtoprens", phone: "+509 4123-5678", available: true, price: "Negosyab" },
+    { name: "Zanmi Lasante - Klinik", spec: "Sante Mantal Entegre", location: "Mirebalais / Pòtoprens", phone: "+509 3388-1234", available: true, price: "Redwi oswa Gratis" },
+    { name: "GHESKIO Mental Health", spec: "Sipò Kriz & Konseling", location: "Pòtoprens", phone: "+509 2940-0001", available: true, price: "Gratis" },
+];
+
+window.loadPsychoDirectory = () => {
+    const container = document.getElementById('psycho-list');
+    if (!container || container.children.length > 0) return;
+    container.innerHTML = PSYCHO_LIST.map(p => `
+        <div style="background:white; border:1px solid #e2e8f0; border-radius:14px; padding:18px; display:flex; flex-direction:column; gap:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:start; flex-wrap:wrap; gap:8px;">
+                <div>
+                    <h4 style="margin:0 0 4px; color:#1f2937;">${p.name}</h4>
+                    <span style="background:#eff6ff;color:#1d4ed8;padding:3px 10px;border-radius:12px;font-size:0.8rem;">${p.spec}</span>
+                </div>
+                <span style="background:${p.available?'#f0fdf4':'#fef2f2'};color:${p.available?'#15803d':'#b91c1c'};padding:4px 10px;border-radius:12px;font-size:0.78rem;font-weight:600;">${p.available?'✓ Disponib':'Pa disponib'}</span>
+            </div>
+            <div style="display:flex;gap:15px;font-size:0.85rem;color:#6b7280;flex-wrap:wrap;">
+                <span><i class="fas fa-map-marker-alt"></i> ${p.location}</span>
+                <span><i class="fas fa-tag"></i> ${p.price}</span>
+            </div>
+            <a href="tel:${p.phone.replace(/\D/g,'')}" style="background:var(--primary);color:white;text-decoration:none;padding:10px;border-radius:10px;text-align:center;font-weight:600;font-size:0.9rem;display:block;">
+                <i class="fas fa-phone-alt"></i> Rele: ${p.phone}
+            </a>
+        </div>
+    `).join('');
+};
+
+// --- EMOTIONAL CALENDAR ---
+window.loadEmotionCalendar = () => {
+    const container = document.getElementById('emotion-calendar-grid');
+    if (!container) return;
+
+    const logs = JSON.parse(localStorage.getItem('zepol_mood_logs') || '[]');
+    const logsByDate = {};
+    logs.forEach(l => {
+        const d = new Date(l.date).toDateString();
+        logsByDate[d] = l.mood;
+    });
+
+    const colorMap = { happy: '#10b981', neutral: '#6b7280', sad: '#3b82f6', anxious: '#f59e0b' };
+    const days = ['Di', 'Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa'];
+
+    // Header
+    let html = days.map(d => `<div style="text-align:center;font-size:0.72rem;font-weight:700;color:#6b7280;padding:4px 0;">${d}</div>`).join('');
+
+    // Last 28 days
+    const today = new Date();
+    const cells = [];
+    for (let i = 27; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(today.getDate() - i);
+        const key = d.toDateString();
+        const mood = logsByDate[key];
+        const col = mood ? colorMap[mood] : '#e2e8f0';
+        const isToday = i === 0;
+        cells.push(`<div title="${d.toLocaleDateString('ht-HT')}${mood ? ' — ' + mood : ''}" style="aspect-ratio:1;border-radius:6px;background:${col};border:${isToday?'2px solid #1f2937':'1px solid transparent'};cursor:default;"></div>`);
+    }
+
+    // Pad to start on right day
+    const firstDay = new Date(today);
+    firstDay.setDate(today.getDate() - 27);
+    const startPad = firstDay.getDay();
+    const padCells = Array(startPad).fill('<div></div>').join('');
+
+    container.innerHTML = html + padCells + cells.join('');
+};
+
+// --- PAYMENT METHODS ---
+window.showPaymentMethod = (method) => {
+    const panel = document.getElementById('payment-instructions');
+    const content = document.getElementById('payment-details-content');
+    if (!panel || !content) return;
+
+    const methods = {
+        moncash: {
+            title: '📱 MonCash', color: '#15803d',
+            steps: ['Ouvri aplikasyon MonCash ou a', 'Klike sou "Paye" oswa "Transfer"', 'Antre nimewo: <strong>+509 4005-7183</strong>', 'Mete montan ou vle bay la', 'Nan nòt la: ekri "Don Zepòl"', 'Konfime tranzaksyon an']
+        },
+        natcash: {
+            title: '💳 NatCash', color: '#1d4ed8',
+            steps: ['Ouvri NatCash oswa Nasyonal Bank an', 'Ale nan "Transfert de fonds"', 'Antre nimewo: <strong>+509 4905-0000</strong>', 'Chwazi montan ou vle bay la', 'Nan referans: "Don Zepòl"', 'Konfime transfè a']
+        },
+        paypal: {
+            title: '🌐 PayPal', color: '#a16207',
+            steps: ['Ale sou paypal.me/ZepolSupport', 'Konekte ak kont PayPal ou', 'Antre montan ou vle voye a (USD)', 'Klike "Voye kounye a"', 'Nou ap konfime resevwa a pa imèl']
+        },
+        virement: {
+            title: '🏦 Viman Bancaire', color: '#7e22ce',
+            steps: ['Banque: Unibank Ayiti', 'Non kont: Zepòl Foundation', 'Nimewo kont: 1234-5678-9012', 'Routing: 022000020', 'Mete "Don Zepòl" nan referans', 'Voye konfirmasyon a sipozepol@gmail.com']
+        }
+    };
+
+    const m = methods[method];
+    if (!m) return;
+
+    content.innerHTML = `
+        <h4 style="color:${m.color};margin:0 0 15px;font-size:1.1rem;">${m.title} — Enstriksyon</h4>
+        <ol style="padding-left:20px;display:flex;flex-direction:column;gap:8px;">
+            ${m.steps.map(s => `<li style="color:#374151;font-size:0.9rem;">${s}</li>`).join('')}
+        </ol>
+        <p style="margin-top:15px;color:#6b7280;font-size:0.82rem;"><i class="fas fa-info-circle"></i> Mèsi pou sipò ou! Nou ap konfime nan 24h.</p>
+    `;
+    panel.style.display = 'block';
+    panel.style.borderColor = m.color;
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+};
+
+// --- MEMBER SUPPORT PROFILES ---
+window.loadMemberSupportProfiles = () => {
+    const container = document.getElementById('member-support-profiles');
+    if (!container || container.children.length > 0) return;
+
+    const profiles = [
+        { name: "Yves M.", goal: "Achte liv pou inivèsite", target: 150, raised: 85, currency: 'USD', story: "Mwen vle kontinye etid mwen men mwen manke lajan pou livre yo." },
+        { name: "Marie J.", goal: "Pran swen mantal (terapi)", target: 80, raised: 30, currency: 'USD', story: "Mwen bezwen 4 sesyon terapi. Mwen fè fas ak depresyon pandan 2 an." },
+        { name: "Pierre D.", goal: "Medikaman pou sante mantal", target: 60, raised: 60, currency: 'USD', story: "Mèsi kominote a! Objektif mwen atenn. 🙏", completed: true },
+    ];
+
+    container.innerHTML = profiles.map(p => {
+        const pct = Math.min(100, Math.round((p.raised / p.target) * 100));
+        return `
+            <div style="background:white;border:1px solid #e2e8f0;border-radius:15px;padding:20px;${p.completed?'opacity:0.7;':''}">
+                <div style="display:flex;gap:12px;align-items:start;margin-bottom:12px;">
+                    <div style="width:42px;height:42px;background:var(--primary);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:16px;flex-shrink:0;">${p.name[0]}</div>
+                    <div><strong style="color:#1f2937;">${p.name}</strong><br><span style="font-size:0.82rem;color:#6b7280;">${p.goal}</span></div>
+                </div>
+                <p style="font-size:0.85rem;color:#6b7280;font-style:italic;margin-bottom:12px;">"${p.story}"</p>
+                <div style="background:#f1f5f9;border-radius:10px;height:8px;margin-bottom:6px;">
+                    <div style="background:${pct>=100?'#10b981':'var(--primary)'};height:100%;border-radius:10px;width:${pct}%;transition:width 0.5s;"></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:0.82rem;color:#6b7280;margin-bottom:12px;">
+                    <span>$${p.raised} ranmase</span><span>${pct}% / $${p.target}</span>
+                </div>
+                ${p.completed ? '<div style="text-align:center;background:#f0fdf4;color:#15803d;padding:8px;border-radius:10px;font-weight:600;">✓ Objektif atenn! Mèsi.</div>' :
+                `<button onclick="window.showPaymentMethod('moncash')" style="background:var(--primary);color:white;border:none;padding:10px;border-radius:10px;width:100%;font-weight:600;cursor:pointer;">
+                    <i class="fas fa-hand-holding-heart"></i> Ede ${p.name.split(' ')[0]}
+                </button>`}
+            </div>
+        `;
+    }).join('');
+};
+
+window.openMemberSupportRequest = () => {
+    const user = dataManager.getUser();
+    if (!user.loggedIn) {
+        NotificationSystem.show('Ou dwe konekte pou mande èd.', 'info');
+        openModal('auth-modal');
+        return;
+    }
+    NotificationSystem.show('Fonksyon "Mande Èd" ap disponib byento. Kontakte sipozepol@gmail.com pou kounye a.', 'info');
+};
+
+// --- PHQ-2 DEPRESSION SCREEN ---
+window.evaluatePHQ2 = () => {
+    const q1 = parseInt(document.getElementById('phq2-q1')?.value || '0');
+    const q2 = parseInt(document.getElementById('phq2-q2')?.value || '0');
+    const score = q1 + q2;
+    const resultEl = document.getElementById('phq2-result');
+    if (!resultEl) return;
+
+    let bg, color, message, action;
+    if (score === 0) {
+        bg = '#f0fdf4'; color = '#15803d';
+        message = '✅ Rezilta: Ou pa montre siy depresyon. Kontinye pran swen tèt ou!';
+        action = '';
+    } else if (score <= 2) {
+        bg = '#fefce8'; color = '#854d0e';
+        message = '⚠️ Rezilta: Siy yo fèb. Pran swen tèt ou, fè egzèsis byennèt yo regilyèman.';
+        action = `<button onclick="switchWellnessMode('breathing')" style="background:#d97706; color:white; border:none; padding:8px 15px; border-radius:20px; font-weight:600; cursor:pointer; margin-top:8px; width:100%;">Kòmanse Respirasyon</button>`;
+    } else if (score <= 4) {
+        bg = '#fff7ed'; color = '#c2410c';
+        message = '🔶 Rezilta: Siy modere. Li bon pou pale ak yon pwofesyonèl sante mantal.';
+        action = `<button onclick="openModal('crisis-support-modal')" style="background:#ea580c; color:white; border:none; padding:8px 15px; border-radius:20px; font-weight:600; cursor:pointer; margin-top:8px; width:100%;">Wè Resous Sipò</button>`;
+    } else {
+        bg = '#fef2f2'; color = '#991b1b';
+        message = '🔴 Rezilta: Siy sevè. Tanpri kontakte yon pwofesyonèl sante mantal oswa rele liy sipò a.';
+        action = `<a href="tel:116" style="background:#dc2626; color:white; text-decoration:none; padding:8px 15px; border-radius:20px; font-weight:600; display:block; margin-top:8px; text-align:center;">Rele 116 Kounye a</a>`;
+    }
+
+    resultEl.style.display = 'block';
+    resultEl.style.background = bg;
+    resultEl.style.color = color;
+    resultEl.innerHTML = `<p style="margin:0; font-weight:600;">${message}</p><p style="margin:6px 0 0; font-size:0.82rem; opacity:0.8;">Skò: ${score}/6 — Rezilta sa pa ranplase dyagnòstik yon pwofesyonèl.</p>${action}`;
+
+    // Save to local analytics
+    const logs = JSON.parse(localStorage.getItem('zepol_phq2_logs') || '[]');
+    logs.push({ score, date: new Date().toISOString() });
+    localStorage.setItem('zepol_phq2_logs', JSON.stringify(logs));
+};
+
+// --- MOOD HISTORY ---
+window.loadMoodHistory = () => {
+    const container = document.getElementById('mood-history-chart');
+    if (!container) return;
+
+    const logs = JSON.parse(localStorage.getItem('zepol_mood_logs') || '[]');
+    if (logs.length === 0) {
+        container.innerHTML = '<div style="color:#94a3b8; font-size:0.85rem; width:100%; text-align:center;">Pa gen istwa ankò. Kòmanse tcheke santi w chak jou.</div>';
+        return;
+    }
+
+    const recent = logs.slice(-14);
+    const colorMap = { happy: '#10b981', neutral: '#6b7280', sad: '#3b82f6', anxious: '#f59e0b' };
+    const emojiMap = { happy: '😊', neutral: '😐', sad: '😔', anxious: '😰' };
+    const maxScore = 10;
+
+    container.innerHTML = recent.map(entry => {
+        const h = Math.max(20, (entry.score / maxScore) * 90);
+        const col = colorMap[entry.mood] || '#6b7280';
+        const emoji = emojiMap[entry.mood] || '😐';
+        const d = new Date(entry.date);
+        const label = `${d.getDate()}/${d.getMonth() + 1}`;
+        return `
+            <div style="display:flex; flex-direction:column; align-items:center; gap:4px; flex:1; min-width:20px;">
+                <span style="font-size:14px;">${emoji}</span>
+                <div style="width:100%; height:${h}px; background:${col}; border-radius:4px; opacity:0.8;" title="${label}: ${entry.score}/10"></div>
+                <span style="font-size:9px; color:#94a3b8; white-space:nowrap;">${label}</span>
+            </div>
+        `;
+    }).join('');
+};
+
+window.openMoodHistory = () => {
+    window.loadMoodHistory();
+    openModal('mood-history-modal');
+};
+
+// --- MISSING FUNCTIONS ---
+
+// submitMoodLog called from mood-modal (score 1-10)
+window.submitMoodLog = async (score) => {
+    const moodMap = {
+        2: { mood: 'sad', label: 'Tris anpil' },
+        4: { mood: 'sad', label: 'Pa anfòm' },
+        6: { mood: 'neutral', label: 'Nòmal' },
+        8: { mood: 'happy', label: 'Bien' },
+        10: { mood: 'happy', label: 'Ekselan' }
+    };
+    const entry = moodMap[score] || { mood: 'neutral', label: 'Nòmal' };
+
+    try {
+        if (dataManager && dataManager.addMoodEntry) {
+            await dataManager.addMoodEntry({
+                mood: entry.mood,
+                score: score,
+                label: entry.label,
+                timestamp: new Date().toISOString()
+            });
+        }
+        // Save locally too
+        const logs = JSON.parse(localStorage.getItem('zepol_mood_logs') || '[]');
+        logs.push({ score, mood: entry.mood, date: new Date().toISOString() });
+        if (logs.length > 30) logs.shift();
+        localStorage.setItem('zepol_mood_logs', JSON.stringify(logs));
+    } catch (e) {
+        console.warn('Mood log save failed:', e);
+    }
+
+    NotificationSystem.show(`Nivo ou: ${entry.label}. Mèsi pou pataje!`, 'success');
+    closeModal('mood-modal');
+
+    if (score <= 4) {
+        setTimeout(() => openModal('crisis-support-modal'), 800);
+    }
+};
+
+// submitJoinCommunity from join-community-modal
+window.submitJoinCommunity = async () => {
+    const user = dataManager.getUser();
+    if (!user.loggedIn) {
+        closeModal('join-community-modal');
+        openModal('auth-modal');
+        return;
+    }
+    NotificationSystem.show('N ap anrejistre angajman w...', 'info');
+    try {
+        if (dataManager.acceptCommunityRules) {
+            await dataManager.acceptCommunityRules();
+        }
+        closeModal('join-community-modal');
+        NotificationSystem.show('Byenveni nan kominote Zepòl! 🎉', 'success');
+        setTimeout(() => navigateTo('community'), 500);
+    } catch (e) {
+        console.warn('Join community failed:', e);
+        closeModal('join-community-modal');
+        NotificationSystem.show('Ou rejwenn kominote a. Byenveni!', 'success');
+        setTimeout(() => navigateTo('community'), 500);
+    }
+};
 
 window.updateUserUI(); // Use the wrapper or pass dataManager
 document.querySelectorAll('.nav-links li').forEach(li => li.addEventListener('click', () => navigateTo(li.dataset.view)));
@@ -2603,6 +3357,13 @@ async function initApp() {
         window.loadJournalEntry?.();
         window.updateSupportJarDisplay?.();
         window.applyStrongNightMode?.(localStorage.getItem('zepol_night_mode') === 'on');
+        window.renderGoals?.();
+        window.renderAchievements?.();
+        window.initDailyChallenges?.();
+        window.loadMemberSupportProfiles?.();
+        // Streak display
+        const streakEl = document.getElementById('streak-count');
+        if (streakEl) streakEl.textContent = localStorage.getItem('zepol_streak') || '0';
         // Force Navigation to Home
         navigateTo('home');
     }
@@ -2749,6 +3510,43 @@ if (registerForm) {
 
 window.resetPassword = () => {
     openModal('reset-password-modal');
+};
+
+window.handleGoogleSignIn = async () => {
+    const btn = document.getElementById('google-signin-btn');
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.7'; }
+
+    try {
+        NotificationSystem.show('Koneksyon Google ap ouvri...', 'info');
+        const result = await dataManager.signInWithGoogle();
+
+        if (result && result.success) {
+            closeModal('auth-modal');
+            closeModal('register-modal');
+            NotificationSystem.show('Byenveni! Koneksyon Google reyisi. 🎉', 'success');
+            // Poll for user data ready
+            let attempts = 0;
+            const poll = setInterval(() => {
+                attempts++;
+                const user = window.dataManager.getUser();
+                if (user.loggedIn) {
+                    clearInterval(poll);
+                    window.updateUserUI();
+                    navigateTo('home');
+                } else if (attempts >= 10) {
+                    clearInterval(poll);
+                    window.updateUserUI();
+                }
+            }, 500);
+        } else {
+            NotificationSystem.show(result?.message || 'Erè Google Sign-In.', 'error');
+        }
+    } catch (e) {
+        console.error('Google Sign-In error:', e);
+        NotificationSystem.show('Erè: ' + (e.message || 'Eseye ankò'), 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+    }
 };
 
 window.handleResetSubmit = async (e) => {
