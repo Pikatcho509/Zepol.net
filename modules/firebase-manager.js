@@ -1,4 +1,4 @@
-import { auth, db, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, doc, setDoc, getDoc, getDocs, updateDoc, collection, addDoc, query, orderBy, limit, onSnapshot, arrayUnion, increment, where, sendPasswordResetEmail, deleteDoc } from '../firebase-config.js';
+import { auth, db, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, doc, setDoc, getDoc, getDocs, updateDoc, collection, addDoc, query, orderBy, limit, onSnapshot, arrayUnion, increment, where, sendPasswordResetEmail, deleteDoc, GoogleAuthProvider, signInWithPopup } from '../firebase-config.js';
 import { NotificationSystem } from './ui.js?v=18.0.43-MOOD-ENHANCED';
 
 export class FirebaseManager {
@@ -152,6 +152,39 @@ export class FirebaseManager {
                 msg = "Imèl la pa bon.";
             }
             return { success: false, message: msg };
+        }
+    }
+
+    async signInWithGoogle() {
+        try {
+            const provider = new GoogleAuthProvider();
+            provider.setCustomParameters({ prompt: 'select_account' });
+            const result = await signInWithPopup(auth, provider);
+            const user = result.user;
+
+            // Create/update user doc in Firestore
+            const userRef = doc(db, 'users', user.uid);
+            const snap = await getDoc(userRef);
+            if (!snap.exists()) {
+                await setDoc(userRef, {
+                    uid: user.uid,
+                    name: user.displayName || 'Manm Zepòl',
+                    email: user.email,
+                    photoURL: user.photoURL || null,
+                    createdAt: new Date().toISOString(),
+                    provider: 'google'
+                });
+            }
+            return { success: true, user };
+        } catch (error) {
+            console.error("Google Sign-In Error:", error);
+            if (error.code === 'auth/popup-closed-by-user') {
+                return { success: false, message: "Ou fèmen fenèt Google a." };
+            }
+            if (error.code === 'auth/popup-blocked') {
+                return { success: false, message: "Navigatè w bloke popup. Pèmèt popup pou site sa a." };
+            }
+            return { success: false, message: "Erè koneksyon Google. Eseye ankò." };
         }
     }
 

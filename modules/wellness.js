@@ -305,51 +305,70 @@ function finishTest() {
     `;
 }
 
-// --- GAME LAUNCHER START ---
+// ─── SHARED GAME HELPERS ────────────────────────────────────────────────────
+
+function gameHeader(title, score = null) {
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 18px;background:rgba(0,0,0,0.25);color:white;">
+        <button onclick="window.closeActiveGame()" style="background:rgba(255,255,255,0.2);border:none;color:white;padding:6px 14px;border-radius:20px;cursor:pointer;font-weight:600;"><i class="fas fa-times"></i> Soti</button>
+        <strong style="font-size:1.1rem;">${title}</strong>
+        ${score !== null ? `<span id="game-score-display" style="background:rgba(255,255,255,0.2);padding:4px 14px;border-radius:20px;font-weight:700;">${score}</span>` : '<span></span>'}
+    </div>`;
+}
+
+function audioClick() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value = 800; g.gain.setValueAtTime(0.15, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+        o.start(ctx.currentTime); o.stop(ctx.currentTime + 0.15);
+    } catch(e) {}
+}
+
+function confetti(x, y, container) {
+    for (let i = 0; i < 8; i++) {
+        const p = document.createElement('div');
+        const colors = ['#ff6b6b','#feca57','#48dbfb','#ff9ff3','#54a0ff','#5f27cd'];
+        p.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:8px;height:8px;background:${colors[i%colors.length]};border-radius:2px;pointer-events:none;transition:all 0.6s ease-out;`;
+        container.appendChild(p);
+        setTimeout(() => {
+            p.style.transform = `translate(${(Math.random()-0.5)*80}px,${(Math.random()-0.8)*80}px) rotate(${Math.random()*360}deg)`;
+            p.style.opacity = '0';
+        }, 10);
+        setTimeout(() => p.remove(), 700);
+    }
+}
+
+// ─── GAME LAUNCHER ──────────────────────────────────────────────────────────
 
 export function launchGame(type) {
-    console.log(`🎮 Launching game: ${type}`);
     const container = document.getElementById('active-game-container');
     const stage = document.getElementById('game-stage');
 
     if (!container || !stage) {
-        console.error("❌ Game container or stage not found!");
         return NotificationSystem.show("Erè: Ekran jwèt la pa pare.", "error");
     }
 
     container.classList.remove('hidden');
-    stage.innerHTML = ''; // Clear previous
-
-    // Hide the games list to create a "dedicated page" feel
+    stage.innerHTML = '';
     const listSection = document.getElementById('games-list-section');
     if (listSection) listSection.classList.add('hidden');
 
     if (type === 'clouds') {
-        stage.innerHTML = `
-            <div class="game-container clouds-container" style="height:400px; position:relative; background:linear-gradient(to bottom, #87CEEB, #E0F7FA); border-radius:12px; overflow:hidden;">
-                <h3 style="position:absolute; top:10px; left:10px; z-index:10;">Nwaj Pozitif</h3>
-                <div class="sun-behind" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:80px; transition:all 1s;">☀️</div>
-                <div id="clouds-overlay-active" style="position:absolute; width:100%; height:100%;"></div>
-            </div>
-        `;
-        initCloudGameInternal(document.getElementById('clouds-overlay-active'));
+        initCloudGameV2(stage);
     } else if (type === 'vibe') {
-        stage.innerHTML = `
-             <div class="game-container" style="height:400px; position:relative; background:#2c3e50; border-radius:12px; overflow:hidden;">
-                <div id="vibe-score-active" style="position:absolute; top:10px; right:10px; color:white; font-weight:bold; font-size:1.2rem; z-index:10;">Sko: 0</div>
-                <div id="vibe-game-area-active" style="width:100%; height:100%;"></div>
-                <button id="vibe-start-btn-active" class="btn-primary" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:20;">Kòmanse Jwèt</button>
-            </div>
-        `;
-        // Delay slighty to ensure DOM is ready
-        setTimeout(() => {
-            const btn = document.getElementById('vibe-start-btn-active');
-            if (btn) btn.onclick = () => initVibeGameInternal();
-        }, 100);
+        initVibeGameV2(stage);
+    } else if (type === 'bubble') {
+        initBubbleWordsGame(stage);
+    } else if (type === 'memory') {
+        initZenMemoryGame(stage);
+    } else if (type === 'breathtap') {
+        initBreathTapGame(stage);
     } else if (type === 'dls') {
         stage.innerHTML = `
             <div style="padding:20px; text-align:center;">
-                
                 <div style="margin-bottom: 30px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px; border-radius: 12px; color: white; text-align: center; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);">
                     <h3 style="margin-bottom: 10px; font-size: 1.4rem;">⚽ Jwe kounye a ak yon lòt moun!</h3>
                     <p style="margin-bottom: 15px; opacity: 0.9; font-size: 0.9rem;">Sistèm nan ap chache yon parèy pou ou, epi ba nou yon kòd sekrè otomatikman.</p>
@@ -359,16 +378,9 @@ export function launchGame(type) {
                         </button>
                     </div>
                 </div>
-
                 <div id="dls-codes-list"></div>
-                
-                <h4 style="color: var(--primary); margin-top: 15px; margin-bottom: 15px; border-top: 1px solid #eee; padding-top:15px;">
-                    <i class="fas fa-users"></i> Jwè Online kounye a
-                </h4>
-                <div id="online-players-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-bottom: 20px;">
-                    <div style="color: grey; font-size: 0.8rem; grid-column: 1/-1;">Ap chèche lòt jwè...</div>
-                </div>
-
+                <h4 style="color: var(--primary); margin-top: 15px; margin-bottom: 15px; border-top: 1px solid #eee; padding-top:15px;"><i class="fas fa-users"></i> Jwè Online kounye a</h4>
+                <div id="online-players-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-bottom: 20px;"><div style="color: grey; font-size: 0.8rem; grid-column: 1/-1;">Ap chèche lòt jwè...</div></div>
                 <div style="display:flex; flex-direction:column; gap:10px; margin-top:30px; background: rgba(255,255,255,0.8); padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;">
                     <label for="dls-code-input" style="font-weight:bold; color:var(--primary); text-align:left; font-size: 1rem;">Oswa pataje pwòp kòd ou:</label>
                     <div style="display:flex; gap:10px;">
@@ -379,231 +391,507 @@ export function launchGame(type) {
             </div>
         `;
         if (window.renderDLSCodes) window.renderDLSCodes();
-    } else if (type === 'bubble') {
-        stage.innerHTML = `
-            <div class="game-container" style="height:400px; position:relative; background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius:12px; overflow:hidden;">
-                <h3 style="position:absolute; top:10px; left:10px; z-index:10; color:white;">🫧 Eclate Bulles</h3>
-                <canvas id="bubble-canvas" width="600" height="400" style="width:100%; height:100%; cursor:pointer; touch-action: none;"></canvas>
-            </div>
-        `;
-        setTimeout(() => initBubbleGame(), 100);
-    } else if (type === 'gratitude') {
-        // Re-use main gratitude modal or mini version? Let's use mini version
-        stage.innerHTML = `
-            <div class="gratitude-container glass-card" style="padding:20px;">
-                <h3>🍯 Bokal Gratitid</h3>
-                <p>Ekri yon bagay ou rekonesan pou li jodi a.</p>
-                <div class="jar-wrapper" style="margin:20px auto; max-width:300px;">
-                     <div id="gratitude-jar-body" class="jar-body">
-                         <div id="jar-empty-msg" class="jar-msg">Bokal la vid...</div>
-                         <div id="jar-fill-level" class="jar-fill"></div>
-                     </div>
-                </div>
-                <div class="jar-input" style="display:flex; gap:10px;">
-                    <input type="text" id="gratitude-text" placeholder="Mwen rekonesan pou..." style="flex:1; padding:10px; border-radius:8px; border:1px solid #ddd;">
-                    <button class="btn-primary" onclick="window.addGratitudeNote()">Ajoute</button>
-                </div>
-            </div>
-        `;
     }
 }
 
-function initBubbleGame() {
-    const canvas = document.getElementById('bubble-canvas');
-    if (!canvas) return;
+// ═══════════════════════════════════════════════════════════════════════════
+//  GAME 1: CLOUD CLEARER V2 — therapeutic, animated, progressive
+// ═══════════════════════════════════════════════════════════════════════════
+const CLOUD_MESSAGES = [
+    "Souf ou kite yon nwaj ale ✨","Ou pi fò pase sa!","Chak klik se yon pas devan 💙",
+    "Respire... ou ap fè li 🌿","Nwaj yo pa ka rete devan ou ☀️","Wo! Ou eksepsyonèl!",
+    "Ou manke 3 pou wè solèy la 🌤","Kontinye, ou prèske la!","Lespri w ap klè!"
+];
+let cloudScore = 0, cloudTotal = 0;
 
-    // Fix Canvas Size
-    canvas.width = canvas.parentElement.clientWidth;
-    canvas.height = canvas.parentElement.clientHeight;
+function initCloudGameV2(stage) {
+    cloudScore = 0;
+    const totalClouds = 12;
+    cloudTotal = totalClouds;
 
-    const ctx = canvas.getContext('2d');
-    const bubbles = [];
+    stage.innerHTML = `
+        <div style="position:relative; background:linear-gradient(180deg,#87ceeb 0%,#e0f7fa 100%); border-radius:16px; overflow:hidden; user-select:none;">
+            ${gameHeader('☁️ Netwaye Syèl la', '0')}
+            <div style="height:420px; position:relative;" id="cloud-arena">
+                <div id="sun-glow" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:90px;opacity:0.15;transition:opacity 1.5s;pointer-events:none;z-index:0;">☀️</div>
+                <div id="cloud-feedback" style="position:absolute;top:60px;left:50%;transform:translateX(-50%);color:#1e3a8a;font-weight:700;font-size:1rem;pointer-events:none;transition:opacity 0.5s;opacity:0;z-index:20;text-align:center;width:80%;"></div>
+            </div>
+            <div style="padding:10px 15px;background:rgba(255,255,255,0.7);text-align:center;font-size:0.85rem;color:#1e40af;">Klike sou chak nwaj pou li disparèt!</div>
+        </div>`;
 
-    // Create bubbles
-    for (let i = 0; i < 20; i++) {
-        bubbles.push({
-            x: Math.random() * canvas.width,
-            y: Math.random() * canvas.height,
-            radius: 20 + Math.random() * 30,
-            speedY: -1 - Math.random() * 2,
-            color: `hsl(${Math.random() * 360}, 70%, 80%)`
-        });
-    }
+    const arena = stage.querySelector('#cloud-arena');
+    const feedbackEl = stage.querySelector('#cloud-feedback');
+    const sunEl = stage.querySelector('#sun-glow');
+    let scoreEl = stage.querySelector('#game-score-display');
 
-    function animate() {
-        if (!document.getElementById('bubble-canvas')) return; // Stop if removed
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const NEGATIVES = ['😰','💔','😣','😤','😞','☁️','⛈️','🌩️'];
+    const placed = [];
 
-        bubbles.forEach((bubble) => {
-            ctx.beginPath();
-            ctx.arc(bubble.x, bubble.y, bubble.radius, 0, Math.PI * 2);
-            ctx.fillStyle = bubble.color;
-            ctx.fill();
-            ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-            ctx.stroke();
+    for (let i = 0; i < totalClouds; i++) {
+        const el = document.createElement('div');
+        el.textContent = NEGATIVES[i % NEGATIVES.length];
+        el.style.cssText = `position:absolute;font-size:${38+Math.random()*22}px;cursor:pointer;z-index:5;transition:transform 0.15s,opacity 0.4s;`;
+        // Avoid clumping
+        let x, y, attempts = 0;
+        do { x = 5 + Math.random()*80; y = 8 + Math.random()*75; attempts++; }
+        while (attempts < 30 && placed.some(p => Math.abs(p.x-x)<12 && Math.abs(p.y-y)<12));
+        placed.push({x,y});
+        el.style.left = x+'%'; el.style.top = y+'%';
 
-            bubble.y += bubble.speedY;
-            if (bubble.y + bubble.radius < 0) {
-                bubble.y = canvas.height + bubble.radius;
-                bubble.x = Math.random() * canvas.width;
+        // Gentle float animation offset
+        el.style.animation = `float ${2.5+Math.random()*2}s ease-in-out ${Math.random()*2}s infinite`;
+
+        el.addEventListener('pointerdown', function(e) {
+            audioClick();
+            cloudScore++;
+            if (scoreEl) scoreEl.textContent = cloudScore;
+            const rect = arena.getBoundingClientRect();
+            confetti(e.clientX - rect.left, e.clientY - rect.top, arena);
+
+            this.style.transform = 'scale(1.4)';
+            this.style.opacity = '0';
+            const self = this;
+            setTimeout(() => { self.remove(); }, 400);
+
+            const msg = CLOUD_MESSAGES[Math.floor(Math.random()*CLOUD_MESSAGES.length)];
+            feedbackEl.textContent = msg;
+            feedbackEl.style.opacity = '1';
+            setTimeout(() => feedbackEl.style.opacity = '0', 1800);
+
+            const remaining = arena.querySelectorAll('[style*="cursor:pointer"]').length - 1;
+            sunEl.style.opacity = (1 - remaining/totalClouds).toFixed(2);
+
+            if (remaining === 0) {
+                setTimeout(() => {
+                    arena.innerHTML = `<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:90px;animation:bounce-in 0.4s;text-align:center;">
+                        ☀️<div style="font-size:1.3rem;font-weight:700;color:#1e3a8a;margin-top:15px;">Solèy la ap briye! Ou fò! 🌟</div>
+                        <div style="font-size:0.95rem;color:#1e40af;margin-top:8px;">Sko: ${cloudScore} nwaj netwaye</div>
+                        <button onclick="window.launchGame('clouds')" style="margin-top:20px;background:#0984e3;color:white;border:none;padding:10px 25px;border-radius:20px;font-weight:600;cursor:pointer;font-size:1rem;">Rejwe 🔄</button>
+                    </div>`;
+                    NotificationSystem.show("Bravo! Ou netwaye syèl la nèt! ☀️ +5 pwen", "success");
+                    const pts = parseInt(localStorage.getItem('zepol_points')||'0') + 5;
+                    localStorage.setItem('zepol_points', pts);
+                }, 300);
             }
         });
-        requestAnimationFrame(animate);
+        arena.appendChild(el);
     }
+}
 
-    // Pop bubbles on click
-    const pop = (e) => {
-        const rect = canvas.getBoundingClientRect();
-        // Handle touch or mouse
-        const clientX = e.clientX || e.touches[0].clientX;
-        const clientY = e.clientY || e.touches[0].clientY;
+// ═══════════════════════════════════════════════════════════════════════════
+//  GAME 2: VIBE CATCHER V2 — good/bad items, speed progression
+// ═══════════════════════════════════════════════════════════════════════════
+let vibeV2Score = 0, vibeV2Lives = 3, vibeV2Interval, vibeV2Running = false;
 
-        const x = clientX - rect.left;
-        const y = clientY - rect.top;
+function initVibeGameV2(stage) {
+    vibeV2Score = 0; vibeV2Lives = 3; vibeV2Running = false;
 
-        bubbles.forEach((bubble) => {
-            const dist = Math.sqrt((x - bubble.x) ** 2 + (y - bubble.y) ** 2);
-            if (dist < bubble.radius * 1.5) { // Forgive aim
-                bubble.y = canvas.height + bubble.radius;
-                bubble.x = Math.random() * canvas.width;
-                // NotificationSystem.show("Pop! 🫧", "info"); // Too spammy
+    stage.innerHTML = `
+        <div style="background:linear-gradient(135deg,#2d3436 0%,#1e1e2e 100%);border-radius:16px;overflow:hidden;user-select:none;">
+            ${gameHeader('⭐ Atrape Bon Enèji', 'Sko: 0')}
+            <div style="display:flex;justify-content:space-between;padding:8px 18px;color:white;font-size:0.9rem;">
+                <span id="vibe-v2-lives">❤️❤️❤️</span>
+                <span id="vibe-v2-level" style="background:rgba(255,255,255,0.1);padding:2px 10px;border-radius:10px;">Nivo 1</span>
+            </div>
+            <div id="vibe-v2-arena" style="height:360px;position:relative;overflow:hidden;cursor:none;">
+                <div id="vibe-v2-cursor" style="position:absolute;font-size:28px;pointer-events:none;transition:all 0.05s;z-index:10;">🧲</div>
+                <div id="vibe-v2-start" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;text-align:center;gap:15px;background:rgba(0,0,0,0.5);">
+                    <div style="font-size:3rem;">⭐</div>
+                    <p style="font-size:1.1rem;opacity:0.9;">Atrape zetwal ❤️ 🌟 ✨<br>Evite 💔 ⛈️ 😤</p>
+                    <button onclick="startVibeV2()" style="background:#a29bfe;color:white;border:none;padding:12px 30px;border-radius:25px;font-weight:700;font-size:1.1rem;cursor:pointer;">Kòmanse!</button>
+                </div>
+            </div>
+            <div style="padding:8px 15px;background:rgba(255,255,255,0.05);text-align:center;font-size:0.78rem;color:rgba(255,255,255,0.5);">Deplase sori ou pou atrape bon enèji</div>
+        </div>`;
+
+    const arena = stage.querySelector('#vibe-v2-arena');
+    const cursor = stage.querySelector('#vibe-v2-cursor');
+
+    arena.addEventListener('pointermove', (e) => {
+        const r = arena.getBoundingClientRect();
+        cursor.style.left = (e.clientX - r.left - 14) + 'px';
+        cursor.style.top = (e.clientY - r.top - 14) + 'px';
+    });
+
+    window.startVibeV2 = () => {
+        const startEl = stage.querySelector('#vibe-v2-start');
+        if (startEl) startEl.style.display = 'none';
+        vibeV2Running = true;
+        vibeV2Score = 0; vibeV2Lives = 3;
+        updateVibeV2HUD(stage);
+        if (vibeV2Interval) clearInterval(vibeV2Interval);
+
+        let spawnRate = 900, levelTimer = 0;
+        vibeV2Interval = setInterval(() => {
+            if (!vibeV2Running) return;
+            levelTimer++;
+            if (levelTimer % 20 === 0) {
+                spawnRate = Math.max(350, spawnRate - 80);
+                const lvl = Math.ceil(levelTimer/20);
+                const lvlEl = stage.querySelector('#vibe-v2-level');
+                if (lvlEl) { lvlEl.textContent = `Nivo ${lvl}`; lvlEl.style.color = '#ffeaa7'; }
             }
-        });
+            spawnVibeV2Item(arena, stage);
+        }, spawnRate);
+
+        setTimeout(() => {
+            clearInterval(vibeV2Interval);
+            vibeV2Running = false;
+            arena.innerHTML = `<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.8);color:white;text-align:center;gap:12px;padding:20px;">
+                <div style="font-size:3rem;">${vibeV2Score>50?'🏆':'⭐'}</div>
+                <h3 style="color:white;margin:0;">Jwèt Fini!</h3>
+                <p style="font-size:1.2rem;opacity:0.9;">Sko ou: <strong style="color:#ffeaa7;font-size:1.5rem;">${vibeV2Score}</strong></p>
+                <p style="font-size:0.9rem;opacity:0.7;">${vibeV2Score>80?'Ekselan! Ou yon chanpyon!':vibeV2Score>40?'Trè bon! Kontinye pratike!':'Bon kòmansman! Eseye ankò!'}</p>
+                <button onclick="window.launchGame('vibe')" style="background:#a29bfe;color:white;border:none;padding:10px 25px;border-radius:20px;font-weight:600;cursor:pointer;">Rejwe 🔄</button>
+            </div>`;
+            const pts = parseInt(localStorage.getItem('zepol_points')||'0') + Math.floor(vibeV2Score/5);
+            localStorage.setItem('zepol_points', pts);
+        }, 30000);
     };
-
-    canvas.addEventListener('click', pop);
-    canvas.addEventListener('touchstart', pop);
-
-    animate();
 }
+
+const GOOD_VIBES = ['⭐','❤️','✨','🌟','💚','🌈','🦋','☀️','🌸','💫'];
+const BAD_VIBES  = ['💔','⛈️','😤','🌑','💢','👿'];
+
+function spawnVibeV2Item(arena, stage) {
+    const isGood = Math.random() > 0.35;
+    const emoji = isGood ? GOOD_VIBES[Math.floor(Math.random()*GOOD_VIBES.length)] : BAD_VIBES[Math.floor(Math.random()*BAD_VIBES.length)];
+    const el = document.createElement('div');
+    el.textContent = emoji;
+    el.style.cssText = `position:absolute;font-size:${28+Math.random()*16}px;left:${Math.random()*90}%;top:-40px;pointer-events:auto;transition:transform 0.1s;cursor:pointer;`;
+
+    let y = -40;
+    const speed = 2.5 + Math.random() * 3.5;
+
+    el.addEventListener('pointerdown', (e) => {
+        audioClick();
+        const rect = arena.getBoundingClientRect();
+        confetti(e.clientX - rect.left, e.clientY - rect.top, arena);
+        el.style.transform = 'scale(2)';
+        el.style.opacity = '0';
+
+        if (isGood) {
+            vibeV2Score += 10;
+        } else {
+            vibeV2Lives = Math.max(0, vibeV2Lives - 1);
+            NotificationSystem.show('Oops! Ou atrape yon move enèji. -1 ❤️', 'warning');
+            if (vibeV2Lives === 0) { clearInterval(vibeV2Interval); vibeV2Running = false; }
+        }
+        updateVibeV2HUD(stage);
+        setTimeout(() => el.remove(), 200);
+    });
+
+    arena.appendChild(el);
+
+    const fall = () => {
+        if (!el.parentNode || !vibeV2Running) { el.remove(); return; }
+        y += speed;
+        el.style.top = y + 'px';
+        if (y > arena.clientHeight + 20) {
+            el.remove();
+            if (isGood) { vibeV2Lives = Math.max(0, vibeV2Lives - 1); updateVibeV2HUD(stage); }
+        } else requestAnimationFrame(fall);
+    };
+    requestAnimationFrame(fall);
+}
+
+function updateVibeV2HUD(stage) {
+    const scoreEl = stage.querySelector('#game-score-display');
+    const livesEl = stage.querySelector('#vibe-v2-lives');
+    if (scoreEl) scoreEl.textContent = `Sko: ${vibeV2Score}`;
+    if (livesEl) livesEl.textContent = '❤️'.repeat(vibeV2Lives) + '🖤'.repeat(3 - vibeV2Lives);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  GAME 3: BUBBLE WORDS — positive messages revealed on pop
+// ═══════════════════════════════════════════════════════════════════════════
+const BUBBLE_WORDS = ['Fò','Bèl','Espwa','Kouraj','Valè','Lapè','Lanmou','Geri','Bravo','Viktwa','Limyè','Dous','Lib','Kontan','Zanmi','Grandi','Respire'];
+
+function initBubbleWordsGame(stage) {
+    stage.innerHTML = `
+        <div style="background:linear-gradient(135deg,#fd79a8 0%,#e84393 100%);border-radius:16px;overflow:hidden;user-select:none;">
+            ${gameHeader('🫧 Mots ki Vole', '0 klase')}
+            <div style="padding:8px 15px;color:white;font-size:0.85rem;text-align:center;opacity:0.9;">Klike sou boul yo pou dekouvri mesaj yo! 💬</div>
+            <div style="position:relative;height:400px;overflow:hidden;" id="bubble-words-arena">
+                <canvas id="bubble-canvas" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></canvas>
+            </div>
+            <div id="bubble-msg-banner" style="padding:10px;background:rgba(255,255,255,0.15);text-align:center;color:white;font-size:1rem;font-weight:600;min-height:40px;transition:all 0.3s;"></div>
+        </div>`;
+
+    const arena = stage.querySelector('#bubble-words-arena');
+    const canvas = stage.querySelector('#bubble-canvas');
+    const msgBanner = stage.querySelector('#bubble-msg-banner');
+    const scoreEl = stage.querySelector('#game-score-display');
+    let popped = 0;
+
+    canvas.width = arena.clientWidth;
+    canvas.height = arena.clientHeight;
+    const ctx = canvas.getContext('2d');
+
+    // Particle trails
+    const particles = [];
+    function animParticles() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (let i = particles.length-1; i >= 0; i--) {
+            const p = particles[i];
+            p.x += p.vx; p.y += p.vy; p.life -= 0.03;
+            if (p.life <= 0) { particles.splice(i, 1); continue; }
+            ctx.globalAlpha = p.life;
+            ctx.fillStyle = p.color;
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        requestAnimationFrame(animParticles);
+    }
+    animParticles();
+
+    function spawnBubble() {
+        if (!stage.querySelector('#bubble-words-arena')) return;
+        const word = BUBBLE_WORDS[Math.floor(Math.random()*BUBBLE_WORDS.length)];
+        const r = 35 + Math.random()*25;
+        const el = document.createElement('div');
+        const hue = Math.floor(Math.random()*360);
+        el.style.cssText = `position:absolute;width:${r*2}px;height:${r*2}px;border-radius:50%;background:hsla(${hue},70%,70%,0.3);border:3px solid hsla(${hue},70%,80%,0.8);box-shadow:0 0 15px hsla(${hue},70%,70%,0.3);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:${r>45?'1rem':'0.85rem'};font-weight:700;color:white;text-shadow:0 1px 3px rgba(0,0,0,0.5);left:${Math.random()*85}%;animation:float ${3+Math.random()*3}s ease-in-out ${Math.random()*2}s infinite;`;
+        el.textContent = word;
+        el.dataset.word = word;
+
+        let y = arena.clientHeight + r;
+        el.style.top = y + 'px';
+        el.style.transition = 'opacity 0.3s';
+
+        el.addEventListener('pointerdown', function(e) {
+            audioClick();
+            popped++;
+            if (scoreEl) scoreEl.textContent = `${popped} klase`;
+
+            // Particle burst
+            const rect = arena.getBoundingClientRect();
+            const bx = e.clientX - rect.left, by = e.clientY - rect.top;
+            for (let i = 0; i < 12; i++) {
+                const angle = (i/12)*Math.PI*2;
+                particles.push({ x:bx, y:by, vx:Math.cos(angle)*3, vy:Math.sin(angle)*3, life:1, r:4+Math.random()*4, color:`hsl(${hue},80%,65%)` });
+            }
+
+            msgBanner.textContent = `✨ ${word} — Se ou menm!`;
+            this.style.transform = 'scale(1.5)';
+            this.style.opacity = '0';
+            clearInterval(this._rise);
+            setTimeout(() => { this.remove(); }, 300);
+        });
+
+        arena.appendChild(el);
+
+        // Rise animation
+        el._rise = setInterval(() => {
+            if (!el.parentNode) return;
+            y -= 0.8;
+            el.style.top = y + 'px';
+            if (y < -r*2) { el.remove(); clearInterval(el._rise); }
+        }, 20);
+    }
+
+    const spawnInterval = setInterval(() => {
+        if (!stage.querySelector('#bubble-words-arena')) { clearInterval(spawnInterval); return; }
+        spawnBubble();
+    }, 1200);
+
+    for (let i = 0; i < 6; i++) setTimeout(spawnBubble, i * 200);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  GAME 4: ZEN MEMORY — card matching with healing symbols
+// ═══════════════════════════════════════════════════════════════════════════
+const ZEN_CARDS = ['🌸','🌊','☀️','🌿','🦋','🌙','🌺','🌴'];
+
+function initZenMemoryGame(stage) {
+    let flipped = [], matched = [], attempts = 0, lockBoard = false;
+    const PAIRS = [...ZEN_CARDS, ...ZEN_CARDS].sort(() => Math.random()-0.5);
+
+    stage.innerHTML = `
+        <div style="background:linear-gradient(135deg,#00b894 0%,#00cec9 100%);border-radius:16px;overflow:hidden;user-select:none;">
+            ${gameHeader('🌸 Memwa Zen', 'Tentativ: 0')}
+            <div style="padding:10px 15px;color:white;text-align:center;font-size:0.85rem;opacity:0.9;">Jwenn pè a nan chak kat — respire ant chak mouvman</div>
+            <div id="memory-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:15px;max-width:420px;margin:0 auto;"></div>
+            <div id="memory-msg" style="padding:10px;text-align:center;color:white;font-size:0.95rem;font-weight:600;min-height:36px;"></div>
+        </div>`;
+
+    const grid = stage.querySelector('#memory-grid');
+    const scoreEl = stage.querySelector('#game-score-display');
+    const msgEl = stage.querySelector('#memory-msg');
+
+    PAIRS.forEach((emoji, idx) => {
+        const card = document.createElement('div');
+        card.style.cssText = `width:100%;padding-bottom:100%;position:relative;cursor:pointer;perspective:600px;`;
+        card.innerHTML = `
+            <div class="memory-card-inner" style="position:absolute;inset:0;transition:transform 0.5s;transform-style:preserve-3d;">
+                <div style="position:absolute;inset:0;background:rgba(255,255,255,0.2);border-radius:12px;border:2px solid rgba(255,255,255,0.4);display:flex;align-items:center;justify-content:center;font-size:1.8rem;backface-visibility:hidden;">🌀</div>
+                <div style="position:absolute;inset:0;background:white;border-radius:12px;border:2px solid #55efc4;display:flex;align-items:center;justify-content:center;font-size:2rem;backface-visibility:hidden;transform:rotateY(180deg);">${emoji}</div>
+            </div>`;
+        card.dataset.emoji = emoji; card.dataset.idx = idx;
+
+        card.addEventListener('click', () => {
+            if (lockBoard || card.classList.contains('matched') || flipped.includes(card)) return;
+            audioClick();
+            const inner = card.querySelector('.memory-card-inner');
+            inner.style.transform = 'rotateY(180deg)';
+            flipped.push(card);
+
+            if (flipped.length === 2) {
+                lockBoard = true; attempts++;
+                if (scoreEl) scoreEl.textContent = `Tentativ: ${attempts}`;
+                const [a, b] = flipped;
+                if (a.dataset.emoji === b.dataset.emoji) {
+                    [a, b].forEach(c => { c.classList.add('matched'); c.style.opacity = '0.7'; });
+                    matched.push(a.dataset.emoji);
+                    msgEl.textContent = `✅ Pè jwenn! ${a.dataset.emoji}`;
+                    flipped = []; lockBoard = false;
+                    if (matched.length === ZEN_CARDS.length) {
+                        setTimeout(() => {
+                            msgEl.innerHTML = `🏆 Bravo! Ou match tout kat yo an ${attempts} tentativ!<br><button onclick="window.launchGame('memory')" style="margin-top:8px;background:white;color:#00b894;border:none;padding:8px 20px;border-radius:20px;font-weight:700;cursor:pointer;">Rejwe 🔄</button>`;
+                            const pts = parseInt(localStorage.getItem('zepol_points')||'0') + 15;
+                            localStorage.setItem('zepol_points', pts);
+                            NotificationSystem.show(`🌸 Memwa Zen konplè! +15 pwen`, 'success');
+                        }, 500);
+                    }
+                } else {
+                    msgEl.textContent = '🔄 Eseye ankò — respire...';
+                    setTimeout(() => {
+                        [a, b].forEach(c => { const inner = c.querySelector('.memory-card-inner'); inner.style.transform = 'rotateY(0deg)'; });
+                        flipped = []; lockBoard = false;
+                    }, 1000);
+                }
+            }
+        });
+        grid.appendChild(card);
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  GAME 5: BREATH TAP — tap in sync with breathing rhythm
+// ═══════════════════════════════════════════════════════════════════════════
+function initBreathTapGame(stage) {
+    let btScore = 0, btPhase = 'inhale', btRound = 0, btRunning = false;
+    const PHASES = [
+        { name: 'inhale', label: 'Respire anndan...', duration: 4000, color: '#74b9ff', emoji: '🫁' },
+        { name: 'hold',   label: 'Kenbe...', duration: 4000, color: '#a29bfe', emoji: '⏸️' },
+        { name: 'exhale', label: 'Lage dousman...', duration: 6000, color: '#55efc4', emoji: '🌬️' },
+    ];
+
+    stage.innerHTML = `
+        <div style="background:linear-gradient(135deg,#e17055 0%,#fdcb6e 100%);border-radius:16px;overflow:hidden;user-select:none;">
+            ${gameHeader('🫁 Ritm Souf', 'Sko: 0')}
+            <div style="display:flex;flex-direction:column;align-items:center;padding:30px 20px;gap:20px;">
+                <div id="bt-circle" style="width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,0.2);border:4px solid rgba(255,255,255,0.6);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:all 0.5s;box-shadow:0 0 40px rgba(255,255,255,0.2);">
+                    <div id="bt-emoji" style="font-size:4rem;margin-bottom:5px;">🫁</div>
+                    <div id="bt-label" style="color:white;font-weight:700;font-size:1.1rem;text-align:center;">Tap pou kòmanse</div>
+                </div>
+                <div style="display:flex;gap:8px;justify-content:center;">
+                    ${PHASES.map(p => `<div id="bt-phase-${p.name}" style="padding:5px 14px;border-radius:20px;background:rgba(255,255,255,0.15);color:white;font-size:0.8rem;font-weight:600;">${p.label.split('...')[0]}</div>`).join('')}
+                </div>
+                <div id="bt-progress-wrap" style="width:100%;max-width:300px;height:6px;background:rgba(255,255,255,0.2);border-radius:10px;">
+                    <div id="bt-progress-bar" style="height:100%;border-radius:10px;background:white;width:0%;transition:width 0.1s;"></div>
+                </div>
+                <div id="bt-feedback" style="color:rgba(255,255,255,0.9);font-size:0.9rem;text-align:center;min-height:24px;"></div>
+            </div>
+            <div style="padding:8px;background:rgba(0,0,0,0.1);text-align:center;color:rgba(255,255,255,0.7);font-size:0.78rem;">Tap sou sèk la lè w wè faz la chanje • 8 sik = +10 pwen</div>
+        </div>`;
+
+    const circle = stage.querySelector('#bt-circle');
+    const emoji = stage.querySelector('#bt-emoji');
+    const label = stage.querySelector('#bt-label');
+    const progBar = stage.querySelector('#bt-progress-bar');
+    const feedback = stage.querySelector('#bt-feedback');
+    const scoreEl = stage.querySelector('#game-score-display');
+    let phaseIdx = 0, phaseTimer = null, phaseStart = 0, animReq;
+
+    function startPhase() {
+        if (!stage.querySelector('#bt-circle')) return;
+        const ph = PHASES[phaseIdx % PHASES.length];
+        btPhase = ph.name;
+        phaseStart = Date.now();
+
+        emoji.textContent = ph.emoji;
+        label.textContent = ph.label;
+        circle.style.background = ph.color + '55';
+        circle.style.borderColor = ph.color;
+        circle.style.boxShadow = `0 0 40px ${ph.color}55`;
+        if (ph.name === 'inhale') circle.style.transform = 'scale(1)';
+        else if (ph.name === 'hold')  circle.style.transform = 'scale(1.15)';
+        else circle.style.transform = 'scale(0.85)';
+
+        PHASES.forEach(p => {
+            const el = stage.querySelector(`#bt-phase-${p.name}`);
+            if (el) el.style.background = p.name === ph.name ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.15)';
+        });
+
+        if (ph.name === 'inhale') { btRound++; if (btRound > 1 && btRound % 3 === 0) { btScore += 10; if(scoreEl) scoreEl.textContent = `Sko: ${btScore}`; feedback.textContent = '🌟 +10 pwen! Ou ap fè ekselan!'; setTimeout(() => feedback.textContent = '', 1500); } }
+
+        clearTimeout(phaseTimer);
+        phaseTimer = setTimeout(() => { phaseIdx++; startPhase(); }, ph.duration);
+    }
+
+    function updateProgress() {
+        if (!stage.querySelector('#bt-progress-bar')) { cancelAnimationFrame(animReq); return; }
+        const ph = PHASES[phaseIdx % PHASES.length];
+        const elapsed = Date.now() - phaseStart;
+        const pct = Math.min(100, (elapsed / ph.duration) * 100);
+        progBar.style.width = pct + '%';
+        animReq = requestAnimationFrame(updateProgress);
+    }
+
+    circle.addEventListener('pointerdown', () => {
+        if (!btRunning) {
+            btRunning = true;
+            btRound = 0; btScore = 0;
+            phaseIdx = 0;
+            startPhase();
+            updateProgress();
+            audioClick();
+            return;
+        }
+        // Tap during correct phase
+        const ph = PHASES[phaseIdx % PHASES.length];
+        audioClick();
+        if (ph.name !== 'hold') {
+            btScore += 5;
+            if (scoreEl) scoreEl.textContent = `Sko: ${btScore}`;
+            feedback.textContent = '✅ An kadans!';
+        } else {
+            feedback.textContent = '⏸️ Kenbe souf ou — pa tap';
+        }
+        setTimeout(() => feedback.textContent = '', 1000);
+    });
+
+    // Stop after 60 seconds
+    setTimeout(() => {
+        if (!stage.querySelector('#bt-circle')) return;
+        clearTimeout(phaseTimer); cancelAnimationFrame(animReq); btRunning = false;
+        circle.style.transform = 'scale(1)';
+        label.textContent = 'Fini! 🎉';
+        emoji.textContent = '🌬️';
+        feedback.innerHTML = `Sko: <strong>${btScore}</strong> — Souf ou kalme w. <br><button onclick="window.launchGame('breathtap')" style="margin-top:8px;background:white;color:#e17055;border:none;padding:6px 18px;border-radius:18px;font-weight:700;cursor:pointer;font-size:0.9rem;">Rekòmanse 🔄</button>`;
+        const pts = parseInt(localStorage.getItem('zepol_points')||'0') + Math.floor(btScore/5);
+        localStorage.setItem('zepol_points', pts);
+        NotificationSystem.show(`🫁 Ritm Souf fini! +${Math.floor(btScore/5)} pwen`, 'success');
+    }, 60000);
+}
+
+// (Bubble game replaced by initBubbleWordsGame above)
 
 export function closeActiveGame() {
     const container = document.getElementById('active-game-container');
     if (container) container.classList.add('hidden');
-
-    // Show the games list again
     const listSection = document.getElementById('games-list-section');
     if (listSection) listSection.classList.remove('hidden');
-
-    // Cleanup intervals if any
     if (vibeInterval) clearInterval(vibeInterval);
+    if (vibeV2Interval) clearInterval(vibeV2Interval);
     const stage = document.getElementById('game-stage');
-    if (stage) stage.innerHTML = ''; // Full Cleanup
+    if (stage) stage.innerHTML = '';
 }
 
-// --- INDIVIDUAL GAME LOGIC (Internal) ---
-
-function initCloudGameInternal(area) {
-    if (!area) return;
-    area.innerHTML = '';
-    const cloudEmojis = ['☁️', '🌩️', '⛈️', '🌨️'];
-    for (let i = 0; i < 15; i++) { // More clouds for bigger screen
-        const cloud = document.createElement('div');
-        cloud.className = 'cloud-item';
-        cloud.innerText = cloudEmojis[Math.floor(Math.random() * cloudEmojis.length)];
-        cloud.style.position = 'absolute'; // Ensure absolute
-        cloud.style.left = Math.random() * 80 + 10 + '%';
-        cloud.style.top = Math.random() * 80 + 10 + '%';
-        cloud.style.fontSize = (Math.random() * 40 + 40) + 'px';
-        cloud.style.cursor = 'pointer';
-        cloud.style.transition = 'all 0.5s ease';
-
-        cloud.onclick = function () {
-            this.style.opacity = '0';
-            this.style.transform = 'scale(2) translateY(-50px)';
-            setTimeout(() => {
-                this.remove();
-                if (area.querySelectorAll('.cloud-item').length === 0) {
-                    NotificationSystem.show("Solèy la ap briye! Ou fò! ☀️", "success");
-                    closeActiveGame();
-                }
-            }, 500);
-        };
-        area.appendChild(cloud);
-    }
-}
-
-// Global scope for DLS active render to be accessible - REMOVED, using main.js global
-
-// Vibe Game logic
+// Legacy stubs kept for backward compat
 let vibeScore = 0;
 let vibeInterval;
-
-function initVibeGameInternal() {
-    const area = document.getElementById('vibe-game-area-active');
-    const startBtn = document.getElementById('vibe-start-btn-active');
-    if (!area) return;
-
-    vibeScore = 0;
-    document.getElementById('vibe-score-active').innerText = `Sko: ${vibeScore}`;
-    startBtn.style.display = 'none';
-
-    if (vibeInterval) clearInterval(vibeInterval);
-
-    // Improved spawn logic
-    vibeInterval = setInterval(() => {
-        if (!document.getElementById('vibe-game-area-active')) {
-            clearInterval(vibeInterval);
-            return;
-        }
-        spawnVibeInternal(area);
-    }, 800);
-
-    setTimeout(() => {
-        clearInterval(vibeInterval);
-        if (startBtn) {
-            startBtn.style.display = 'inline-block';
-            startBtn.innerText = 'Re-kòmanse';
-        }
-        NotificationSystem.show(`Jwèt fini! Sko: ${vibeScore}. ✨`, "success");
-    }, 30000); // 30s game
-}
-
-function spawnVibeInternal(area) {
-    const item = document.createElement('div');
-    item.className = 'vibe-item';
-    const vibes = ['✨', '❤️', '🦋', '🌟', '🍀', '🌈', '☀️', '💖'];
-    item.innerText = vibes[Math.floor(Math.random() * vibes.length)];
-    item.style.position = 'absolute';
-    const x = Math.random() * (area.clientWidth - 40);
-    item.style.left = `${x}px`;
-    item.style.top = '-50px';
-    item.style.fontSize = '30px';
-    item.style.cursor = 'pointer';
-
-    // Animation via JS to ensure it works in this dynamic container
-    let y = -50;
-    const speed = 2 + Math.random() * 3;
-
-    function fall() {
-        if (!item.parentNode) return; // Stop if removed
-        y += speed;
-        item.style.top = `${y}px`;
-        if (y > area.clientHeight) {
-            item.remove();
-        } else {
-            requestAnimationFrame(fall);
-        }
-    }
-    requestAnimationFrame(fall);
-
-    item.onclick = (e) => {
-        e.stopPropagation(); // Prevent issues
-        vibeScore += 10;
-        const scoreEl = document.getElementById('vibe-score-active');
-        if (scoreEl) scoreEl.innerText = `Sko: ${vibeScore}`;
-
-        // Pop effect
-        item.style.transform = "scale(1.5)";
-        item.style.opacity = "0";
-        setTimeout(() => item.remove(), 200);
-    };
-
-    // Touch support
-    item.ontouchend = item.onclick;
-
-    area.appendChild(item);
-}
 
 
 export function initCloudGame() {
