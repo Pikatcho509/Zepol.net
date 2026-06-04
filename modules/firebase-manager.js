@@ -422,6 +422,32 @@ export class FirebaseManager {
         return p === 'pro' || p === 'ultimate';
     }
 
+    // Pwodwi/abònman itilizatè a (pou paj "Acha Mwen")
+    async getMyPurchases() {
+        if (!this.currentUser?.uid) return { purchases: [], subscriptions: [] };
+        try {
+            const uid = this.currentUser.uid;
+            const [pSnap, sSnap] = await Promise.all([
+                getDocs(query(collection(db, 'purchases'), where('userId', '==', uid))),
+                getDocs(query(collection(db, 'subscriptions'), where('userId', '==', uid)))
+            ]);
+            const sortByDate = arr => arr.sort((a, b) =>
+                new Date(b.purchasedAt || b.requestedAt || 0) - new Date(a.purchasedAt || a.requestedAt || 0));
+            return {
+                purchases: sortByDate(pSnap.docs.map(d => ({ id: d.id, ...d.data() }))),
+                subscriptions: sortByDate(sSnap.docs.map(d => ({ id: d.id, ...d.data() })))
+            };
+        } catch (e) {
+            console.warn('getMyPurchases error:', e);
+            return { purchases: [], subscriptions: [] };
+        }
+    }
+
+    // Eske itilizatè a achte yon pwodwi espesifik (livre)?
+    hasProduct(productId) {
+        return (this.currentUser?.purchases || []).includes(productId);
+    }
+
     // ── DIGITAL PRODUCTS ─────────────────────────────────────────
     async purchaseProduct(productId, productName, price, paymentMethod, txRef) {
         if (!this.currentUser?.uid) return { success: false, message: "Konekte pou achte." };
@@ -577,6 +603,28 @@ export class FirebaseManager {
         } catch (e) {
             console.error("Admin update error:", e);
             return { success: false, message: "Erè mizajou." };
+        }
+    }
+
+    // Make yon acha "livre" EPI ajoute pwodwi a nan kont kliyan an (debloke l)
+    async adminDeliverPurchase(purchaseId, buyerUserId, productId) {
+        if (!this.isAdmin()) return { success: false, message: "Pa otorize." };
+        try {
+            await updateDoc(doc(db, "purchases", purchaseId), {
+                status: 'delivered',
+                deliveredAt: new Date().toISOString(),
+                deliveredBy: this.currentUser.email
+            });
+            // Ajoute pwodwi a nan lis kliyan an genyen
+            if (buyerUserId && productId) {
+                await setDoc(doc(db, "users", buyerUserId), {
+                    purchases: arrayUnion(productId)
+                }, { merge: true });
+            }
+            return { success: true, message: "Pwodwi livre epi debloke pou kliyan an!" };
+        } catch (e) {
+            console.error("Deliver purchase error:", e);
+            return { success: false, message: "Erè." };
         }
     }
 

@@ -2377,15 +2377,31 @@
                     <label style="font-size:0.85rem; color:#6b7280; display:block; margin-bottom:6px;">Nimewo referans tranzaksyon (opsyonèl):</label>
                     <input type="text" id="checkout-txref" placeholder="Egz: MC-12345678" style="width:100%; padding:10px 14px; border:1px solid #e2e8f0; border-radius:10px; outline:none;">
                 </div>
+                <button onclick="window.sendPaymentProofWhatsApp()" style="width:100%; border-radius:25px; margin-bottom:8px; background:#22c55e; color:white; border:none; padding:13px; font-weight:700; cursor:pointer; font-size:1rem;">
+                    <i class="fab fa-whatsapp"></i> Voye Prèv Peman sou WhatsApp
+                </button>
+                <p style="font-size:0.78rem; color:#6b7280; text-align:center; margin:0 0 10px;">Apre w fin peye, klike bouton vèt la pou voye foto resi a ban nou. N ap verifye epi aktive l.</p>
                 <button onclick="window.confirmCheckout()" class="btn-primary" style="width:100%; border-radius:25px; margin-bottom:8px;">
-                    <i class="fas fa-check"></i> Mwen fè peman an
+                    <i class="fas fa-check"></i> Mwen fin peye (san WhatsApp)
                 </button>
                 <button onclick="window.backToCheckoutMethod()" style="width:100%; background:none; border:none; color:#6b7280; cursor:pointer; padding:8px; font-size:0.85rem;">← Chanje metòd</button>
             </div>
 
             <p style="font-size:0.75rem; color:#94a3b8; text-align:center; margin-top:14px;">
-                <i class="fas fa-shield-alt"></i> Ekip Zepòl ap verifye peman w nan 24è epi aktive abònman an.
+                <i class="fas fa-shield-alt"></i> Ekip Zepòl ap verifye peman w nan 24è epi aktive l otomatikman.
             </p>
+        </div>
+    </div>
+
+    <!-- ACHA MWEN / MY PURCHASES MODAL -->
+    <div id="my-purchases-modal" class="modal hidden">
+        <div class="modal-content glass-panel" style="max-width: 560px; max-height: 88vh; overflow-y: auto;">
+            <span class="close-modal" onclick="closeModal('my-purchases-modal')">&times;</span>
+            <h3 style="color: var(--primary-dark);"><i class="fas fa-shopping-bag" style="color:var(--primary);"></i> Acha Mwen & Abònman</h3>
+            <p style="color:#6b7280; font-size:0.9rem; margin-bottom:18px;">Tout sa ou achte ak plan ou yo parèt isit la.</p>
+            <div id="my-purchases-content" style="min-height:150px;">
+                <div style="text-align:center; color:#94a3b8; padding:30px;"><i class="fas fa-spinner fa-spin"></i> Ap chaje...</div>
+            </div>
         </div>
     </div>
 
@@ -2835,6 +2851,8 @@
                 Paramèt ⚙️</button>
             <button onclick="navigateTo('premium')" class="sidebar-btn-modern" style="color: #f59e0b;"><i class="fas fa-crown"></i>
                 Premium ⭐</button>
+            <button onclick="window.openMyPurchases()" class="sidebar-btn-modern" style="color: #0ea5e9;"><i class="fas fa-shopping-bag"></i>
+                Acha Mwen 🛍️</button>
             <button onclick="openModal('crisis-support-modal')" class="sidebar-btn-modern" style="color: #3b82f6; border: 1px solid #bfdbfe; background: #eff6ff; margin-top: 8px;">
                 <i class="fas fa-heart"></i> Sipò Depresyon 💙</button>
             <button onclick="openModal('faq-modal'); window.loadFAQ();" class="sidebar-btn-modern" style="color: #6b7280;">

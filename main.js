@@ -3074,6 +3074,115 @@ window.backToCheckoutMethod = () => {
     document.getElementById('checkout-step-pay').style.display = 'none';
 };
 
+// Nimewo WhatsApp Zepòl pou resevwa prèv peman
+const ZEPOL_WHATSAPP = '50949033260';
+
+window.sendPaymentProofWhatsApp = async () => {
+    if (!currentCheckout) return;
+    const c = currentCheckout;
+    const txRef = document.getElementById('checkout-txref')?.value.trim() || c.ref;
+    const user = dataManager.getUser();
+
+    // 1. Anrejistre demand lan nan Firebase (pou l parèt nan panèl admin)
+    let res;
+    if (c.type === 'plan') {
+        res = await dataManager.subscribeToPlan(c.id, c.method, txRef);
+    } else {
+        res = await dataManager.purchaseProduct(c.id, c.name, c.price, c.method, txRef);
+    }
+
+    // 2. Louvri WhatsApp ak yon mesaj deja ekri
+    const msg =
+`Bonjou Zepòl! 🙏
+Mwen sot fè yon peman pou: *${c.name}* (${c.amount})
+Metòd: ${c.method}
+Referans: ${txRef}
+Non: ${user.name || ''} ${user.email ? '(' + user.email + ')' : ''}
+
+Men prèv peman an 👇 (m ap tache foto resi a)`;
+    window.open(`https://wa.me/${ZEPOL_WHATSAPP}?text=${encodeURIComponent(msg)}`, '_blank');
+
+    // 3. Konfime sou ekran an
+    closeModal('checkout-modal');
+    openModal('thanks-modal');
+    const thanksModal = document.getElementById('thanks-modal');
+    if (thanksModal) {
+        const p = thanksModal.querySelector('p');
+        if (p) p.textContent = `Mèsi! Voye foto resi a sou WhatsApp nou epi n ap aktive "${c.name}" pou ou nan kèk minit apre nou verifye peman an. 💙`;
+    }
+    NotificationSystem.show('Demand ou anrejistre! Voye prèv la sou WhatsApp.', 'success');
+    currentCheckout = null;
+};
+
+// ── ACHA MWEN (My Purchases) ─────────────────────────────────
+window.openMyPurchases = async () => {
+    const user = dataManager.getUser();
+    if (!user.loggedIn) { NotificationSystem.show('Konekte pou wè acha w yo.', 'info'); openModal('auth-modal'); return; }
+
+    openModal('my-purchases-modal');
+    const container = document.getElementById('my-purchases-content');
+    if (container) container.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:30px;"><i class="fas fa-spinner fa-spin"></i> Ap chaje...</div>';
+
+    const data = await dataManager.getMyPurchases();
+    const plan = dataManager.getUserPlan ? dataManager.getUserPlan() : 'free';
+
+    let html = '';
+
+    // Plan aktyèl
+    const planLabels = { free: 'Gratis', pro: '⭐ Pro', ultimate: '👑 Ilimite' };
+    html += `<div style="background:linear-gradient(135deg,${plan==='free'?'#f1f5f9,#e2e8f0':'#fef9c3,#fde68a'});border-radius:14px;padding:16px;margin-bottom:18px;">
+        <div style="font-size:0.8rem;color:#6b7280;">Plan aktyèl ou</div>
+        <div style="font-size:1.3rem;font-weight:800;color:${plan==='free'?'#475569':'#92400e'};">${planLabels[plan]||plan}</div>
+        ${user.premiumUntil ? `<div style="font-size:0.78rem;color:#92400e;margin-top:4px;">Valab jiska: ${new Date(user.premiumUntil).toLocaleDateString('ht-HT')}</div>` : ''}
+        ${plan==='free' ? `<button onclick="closeModal('my-purchases-modal'); navigateTo('premium');" style="margin-top:10px;background:var(--primary);color:white;border:none;padding:8px 16px;border-radius:20px;font-weight:600;cursor:pointer;font-size:0.85rem;">Pase Premium ⭐</button>` : ''}
+    </div>`;
+
+    // Abònman an atant
+    const pendingSubs = (data.subscriptions || []).filter(s => s.status === 'pending');
+    if (pendingSubs.length) {
+        html += `<h4 style="color:#92400e;font-size:0.95rem;margin:0 0 8px;">⏳ Abònman an atant verifikasyon</h4>`;
+        html += pendingSubs.map(s => `<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px;margin-bottom:8px;font-size:0.88rem;">
+            ${s.plan?.toUpperCase()} · ${s.paymentMethod} · <span style="color:#a16207;">Ap tann nou verifye peman w</span>
+        </div>`).join('');
+    }
+
+    // Pwodwi yo
+    const PRODUCT_META = {
+        'ebook-stress': { icon: '📘', name: 'Ebook Anti-Strès' },
+        'meditation-pack': { icon: '🧘', name: 'Meditasyon Gide', action: `onclick="closeModal('my-purchases-modal'); window.openMeditation();"`, actionLabel: 'Louvri Meditasyon yo' },
+        'journal-pdf': { icon: '📓', name: 'Jounal PDF 30 jou' }
+    };
+    const purchases = data.purchases || [];
+    if (purchases.length) {
+        html += `<h4 style="color:var(--primary-dark);font-size:0.95rem;margin:14px 0 8px;">🛍️ Pwodwi mwen yo</h4>`;
+        html += purchases.map(p => {
+            const meta = PRODUCT_META[p.productId] || { icon: '📦', name: p.productName };
+            const delivered = p.status === 'delivered';
+            return `<div style="display:flex;align-items:center;gap:12px;background:white;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:10px;">
+                <div style="font-size:1.8rem;">${meta.icon}</div>
+                <div style="flex:1;">
+                    <div style="font-weight:600;color:#1f2937;">${meta.name}</div>
+                    <div style="font-size:0.78rem;color:${delivered?'#15803d':'#a16207'};">${delivered?'✓ Disponib':'⏳ Ap tann verifikasyon peman'}</div>
+                </div>
+                ${delivered && meta.action ? `<button ${meta.action} style="background:var(--primary);color:white;border:none;padding:8px 14px;border-radius:18px;font-weight:600;cursor:pointer;font-size:0.82rem;">${meta.actionLabel}</button>`
+                  : delivered ? `<a href="https://wa.me/${ZEPOL_WHATSAPP}?text=${encodeURIComponent('Bonjou, mwen vle resevwa pwodwi mwen achte a: '+meta.name)}" target="_blank" style="background:#22c55e;color:white;text-decoration:none;padding:8px 14px;border-radius:18px;font-weight:600;font-size:0.82rem;"><i class="fab fa-whatsapp"></i> Resevwa</a>`
+                  : ''}
+            </div>`;
+        }).join('');
+    }
+
+    if (!purchases.length && !pendingSubs.length && plan === 'free') {
+        html += `<div style="text-align:center;color:#94a3b8;padding:20px;">
+            <div style="font-size:2.5rem;margin-bottom:10px;">🛍️</div>
+            <p>Ou poko achte anyen.</p>
+            <button onclick="closeModal('my-purchases-modal'); navigateTo('premium');" style="background:var(--primary);color:white;border:none;padding:10px 20px;border-radius:20px;font-weight:600;cursor:pointer;">Wè Boutik & Premium</button>
+        </div>`;
+    }
+
+    const container2 = document.getElementById('my-purchases-content');
+    if (container2) container2.innerHTML = html;
+};
+
 window.confirmCheckout = async () => {
     if (!currentCheckout) return;
     const txRef = document.getElementById('checkout-txref')?.value.trim() || currentCheckout.ref;
@@ -3292,7 +3401,7 @@ function _renderAdminSubscription(s) {
 function _renderAdminPurchase(p) {
     const actions = p.status === 'pending' ? `
         <div style="display:flex;gap:8px;margin-top:10px;">
-            <button onclick="window.adminMarkDelivered('${p.id}')" style="flex:1;background:#3b82f6;color:white;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.82rem;"><i class="fas fa-paper-plane"></i> Make Livre</button>
+            <button onclick="window.adminMarkDelivered('${p.id}','${p.userId}','${p.productId}')" style="flex:1;background:#3b82f6;color:white;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.82rem;"><i class="fas fa-paper-plane"></i> Make Livre & Debloke</button>
             <button onclick="window.adminReject('purchases','${p.id}')" style="background:#ef4444;color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.82rem;"><i class="fas fa-times"></i></button>
         </div>` : '';
     return _adminCard(`
@@ -3374,9 +3483,9 @@ window.adminReject = async (coll, docId) => {
     if (res.success) window.loadAdminTab(adminCurrentTab);
 };
 
-window.adminMarkDelivered = async (purchaseId) => {
-    const res = await dataManager.adminUpdateStatus('purchases', purchaseId, 'delivered');
-    NotificationSystem.show(res.success ? 'Pwodwi make kòm livre!' : res.message, res.success ? 'success' : 'error');
+window.adminMarkDelivered = async (purchaseId, buyerUserId, productId) => {
+    const res = await dataManager.adminDeliverPurchase(purchaseId, buyerUserId, productId);
+    NotificationSystem.show(res.success ? 'Pwodwi livre epi debloke pou kliyan an!' : res.message, res.success ? 'success' : 'error');
     if (res.success) window.loadAdminTab(adminCurrentTab);
 };
 
@@ -3408,7 +3517,9 @@ const MEDITATION_SESSIONS = [
 
 window.openMeditation = () => {
     const plan = dataManager.getUserPlan ? dataManager.getUserPlan() : 'free';
-    const isPremium = plan === 'pro' || plan === 'ultimate';
+    // Debloke si premium OSWA si moun nan achte "meditation-pack"
+    const ownsMeditation = dataManager.hasProduct && dataManager.hasProduct('meditation-pack');
+    const isPremium = plan === 'pro' || plan === 'ultimate' || ownsMeditation;
 
     const list = document.getElementById('meditation-list');
     const player = document.getElementById('meditation-player');
