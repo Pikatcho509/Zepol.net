@@ -3165,11 +3165,23 @@ window.refreshPremiumUI = () => {
         el.classList.toggle('unlocked', isPremium);
     });
 
-    // Show admin button only for admin
+    // Show admin button(s) only for admin
     const isAdmin = dataManager.isAdmin && dataManager.isAdmin();
-    const adminBtn = document.getElementById('sidebar-admin-btn');
-    if (adminBtn) adminBtn.classList.toggle('hidden', !isAdmin);
+    console.log('🛡️ Admin check — imèl:', user.email || '(pa konekte)', '| isAdmin:', isAdmin);
+    document.querySelectorAll('.admin-only, #sidebar-admin-btn').forEach(el => {
+        el.classList.toggle('hidden', !isAdmin);
+    });
 };
+
+// URL param ?admin=1 → ouvri panel dirèkteman (si admin)
+window.addEventListener('load', () => {
+    if (new URLSearchParams(location.search).get('admin') === '1') {
+        setTimeout(() => {
+            if (dataManager.isAdmin && dataManager.isAdmin()) window.openAdminPanel();
+            else NotificationSystem.show('Konekte ak kont admin lan (pikatcho77) anvan.', 'warning');
+        }, 2500);
+    }
+});
 
 // ═══════════════════════════════════════════════════════════
 //  ADMIN PANEL
