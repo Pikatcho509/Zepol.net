@@ -2,6 +2,8 @@ import { auth, db, createUserWithEmailAndPassword, signInWithEmailAndPassword, s
 import { NotificationSystem } from './ui.js?v=18.0.43-MOOD-ENHANCED';
 
 export class FirebaseManager {
+    static ADMIN_EMAIL = 'pikatcho77@gmail.com';
+
     constructor() {
         this.currentUser = null;
         this.initAuth();
@@ -30,7 +32,10 @@ export class FirebaseManager {
                             isMember: userData.isMember || false,
                             engagementCount: userData.engagementCount || 0,
                             hasAcceptedRules: userData.hasAcceptedRules || false,
-                            blockedUsers: blockedUsersData
+                            blockedUsers: blockedUsersData,
+                            plan: userData.plan || 'free',
+                            premiumUntil: userData.premiumUntil || null,
+                            purchases: userData.purchases || []
                         };
                     } catch (e) {
                         console.error("Error fetching user data:", e);
@@ -371,6 +376,230 @@ export class FirebaseManager {
         } catch (e) {
             console.error("Error toggling membership:", e);
             return false;
+        }
+    }
+
+    // ── SUBSCRIPTIONS / PREMIUM ──────────────────────────────────
+    async subscribeToPlan(plan, paymentMethod, txRef) {
+        if (!this.currentUser?.uid) return { success: false, message: "Konekte pou abòne." };
+        try {
+            // 1. Record subscription request (admin verifies payment)
+            await addDoc(collection(db, "subscriptions"), {
+                userId: this.currentUser.uid,
+                userName: this.currentUser.name,
+                userEmail: this.currentUser.email || null,
+                plan: plan,                 // 'pro' | 'ultimate'
+                paymentMethod: paymentMethod, // 'moncash' | 'natcash' | 'paypal'
+                txRef: txRef || null,
+                status: 'pending',          // admin sets to 'active'
+                requestedAt: new Date().toISOString()
+            });
+            // 2. Mark user with pending plan so UI reflects it
+            await setDoc(doc(db, "users", this.currentUser.uid), {
+                pendingPlan: plan,
+                pendingSince: new Date().toISOString()
+            }, { merge: true });
+            this.currentUser.pendingPlan = plan;
+            return { success: true, message: "Demand abònman w resevwa!" };
+        } catch (e) {
+            console.error("Subscribe error:", e);
+            return { success: false, message: "Erè. Eseye ankò." };
+        }
+    }
+
+    getUserPlan() {
+        if (!this.currentUser) return 'free';
+        // Check premium expiry
+        if (this.currentUser.premiumUntil) {
+            const until = new Date(this.currentUser.premiumUntil);
+            if (until < new Date()) return 'free';
+        }
+        return this.currentUser.plan || 'free';
+    }
+
+    isPremium() {
+        const p = this.getUserPlan();
+        return p === 'pro' || p === 'ultimate';
+    }
+
+    // ── DIGITAL PRODUCTS ─────────────────────────────────────────
+    async purchaseProduct(productId, productName, price, paymentMethod, txRef) {
+        if (!this.currentUser?.uid) return { success: false, message: "Konekte pou achte." };
+        try {
+            await addDoc(collection(db, "purchases"), {
+                userId: this.currentUser.uid,
+                userName: this.currentUser.name,
+                productId, productName, price,
+                paymentMethod, txRef: txRef || null,
+                status: 'pending',
+                purchasedAt: new Date().toISOString()
+            });
+            return { success: true, message: "Demand acha w resevwa!" };
+        } catch (e) {
+            console.error("Purchase error:", e);
+            return { success: false, message: "Erè acha. Eseye ankò." };
+        }
+    }
+
+    // ── REPORT POST ──────────────────────────────────────────────
+    async reportPost(postId, reason) {
+        if (!this.currentUser?.uid) return false;
+        try {
+            await addDoc(collection(db, "reports"), {
+                postId: postId,
+                reporterId: this.currentUser.uid,
+                reporterName: this.currentUser.name,
+                reason: reason || 'Kontni ki pa apwopriye',
+                status: 'open',
+                reportedAt: new Date().toISOString()
+            });
+            return true;
+        } catch (e) {
+            console.error("Report error:", e);
+            return false;
+        }
+    }
+
+    // ── SUPPORT REQUEST (mande èd) ───────────────────────────────
+    async requestSupport(data) {
+        if (!this.currentUser?.uid) return { success: false, message: "Konekte pou mande èd." };
+        try {
+            await addDoc(collection(db, "support_requests"), {
+                userId: this.currentUser.uid,
+                userName: this.currentUser.name,
+                goal: data.goal || '',
+                amount: data.amount || null,
+                story: data.story || '',
+                contact: data.contact || this.currentUser.email || null,
+                status: 'pending',
+                createdAt: new Date().toISOString()
+            });
+            return { success: true, message: "Demand èd ou voye! Ekip la ap revize l." };
+        } catch (e) {
+            console.error("Support request error:", e);
+            return { success: false, message: "Erè. Eseye ankò." };
+        }
+    }
+
+    // ── COACHING / KONSILTASYON ──────────────────────────────────
+    async bookCoaching(data) {
+        if (!this.currentUser?.uid) return { success: false, message: "Konekte pou rezève." };
+        try {
+            await addDoc(collection(db, "coaching_requests"), {
+                userId: this.currentUser.uid,
+                userName: this.currentUser.name,
+                type: data.type || 'sikològ',
+                preferredDate: data.preferredDate || null,
+                phone: data.phone || null,
+                note: data.note || '',
+                status: 'pending',
+                createdAt: new Date().toISOString()
+            });
+            return { success: true, message: "Demand randevou w voye! N ap kontakte w." };
+        } catch (e) {
+            console.error("Coaching error:", e);
+            return { success: false, message: "Erè. Eseye ankò." };
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  ADMIN PANEL (pikatcho77@gmail.com only)
+    // ═══════════════════════════════════════════════════════════
+    isAdmin() {
+        // Check both cached user and live Firebase auth (fallback)
+        const cachedEmail = (this.currentUser?.email || '').trim().toLowerCase();
+        const authEmail = (auth.currentUser?.email || '').trim().toLowerCase();
+        const adminEmail = FirebaseManager.ADMIN_EMAIL.toLowerCase();
+        return cachedEmail === adminEmail || authEmail === adminEmail;
+    }
+
+    // Generic admin fetch — returns array of {id, ...data}
+    async adminFetch(collName, statusFilter = null) {
+        if (!this.isAdmin()) return [];
+        try {
+            const colRef = collection(db, collName);
+            const snapshot = await getDocs(colRef);
+            let items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            if (statusFilter) items = items.filter(i => i.status === statusFilter);
+            // Sort newest first
+            items.sort((a, b) => {
+                const da = new Date(a.requestedAt || a.purchasedAt || a.createdAt || a.reportedAt || 0);
+                const db2 = new Date(b.requestedAt || b.purchasedAt || b.createdAt || b.reportedAt || 0);
+                return db2 - da;
+            });
+            return items;
+        } catch (e) {
+            console.error(`Admin fetch ${collName} error:`, e);
+            return [];
+        }
+    }
+
+    // Activate a subscription → set target user's plan + premium expiry
+    async activateSubscription(subId, targetUserId, plan, months = 1) {
+        if (!this.isAdmin()) return { success: false, message: "Pa otorize." };
+        try {
+            const until = new Date();
+            until.setMonth(until.getMonth() + months);
+
+            // Update the subscription doc
+            await updateDoc(doc(db, "subscriptions", subId), {
+                status: 'active',
+                activatedAt: new Date().toISOString(),
+                activatedBy: this.currentUser.email,
+                premiumUntil: until.toISOString()
+            });
+
+            // Update the target user's plan
+            await setDoc(doc(db, "users", targetUserId), {
+                plan: plan,
+                premiumUntil: until.toISOString(),
+                pendingPlan: null
+            }, { merge: true });
+
+            return { success: true, message: `Plan ${plan} aktive pou ${months} mwa!` };
+        } catch (e) {
+            console.error("Activate subscription error:", e);
+            return { success: false, message: "Erè aktivasyon." };
+        }
+    }
+
+    // Reject / cancel any pending item
+    async adminUpdateStatus(collName, docId, newStatus, extra = {}) {
+        if (!this.isAdmin()) return { success: false, message: "Pa otorize." };
+        try {
+            await updateDoc(doc(db, collName, docId), {
+                status: newStatus,
+                resolvedAt: new Date().toISOString(),
+                resolvedBy: this.currentUser.email,
+                ...extra
+            });
+            return { success: true, message: "Mizajou fèt." };
+        } catch (e) {
+            console.error("Admin update error:", e);
+            return { success: false, message: "Erè mizajou." };
+        }
+    }
+
+    // Manually set a user's plan by their email (admin override)
+    async adminSetPlanByEmail(email, plan, months = 1) {
+        if (!this.isAdmin()) return { success: false, message: "Pa otorize." };
+        try {
+            // Find user by email
+            const q = query(collection(db, "users"), where("email", "==", email.toLowerCase()));
+            const snap = await getDocs(q);
+            if (snap.empty) return { success: false, message: "Itilizatè pa jwenn." };
+            const userDoc = snap.docs[0];
+            const until = new Date();
+            until.setMonth(until.getMonth() + months);
+            await setDoc(doc(db, "users", userDoc.id), {
+                plan: plan,
+                premiumUntil: plan === 'free' ? null : until.toISOString(),
+                pendingPlan: null
+            }, { merge: true });
+            return { success: true, message: `Plan ${email} mete sou ${plan}.` };
+        } catch (e) {
+            console.error("Admin set plan error:", e);
+            return { success: false, message: "Erè." };
         }
     }
 

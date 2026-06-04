@@ -1,0 +1,42 @@
+name: Deploy Zepòl sou LWS
+
+# Deplwaye otomatikman lè ou push sou main oswa 2-juin
+on:
+  push:
+    branches:
+      - main
+      - 2-juin
+  workflow_dispatch:   # pèmèt ou lanse l manyèlman tou nan onglè Actions
+
+jobs:
+  ftp-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Telechaje kòd la
+        uses: actions/checkout@v4
+
+      - name: Voye fichye yo sou LWS via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          # Dosye web root sou LWS la. Chanje si fichye yo dwe ale nan yon sous-dosye
+          # (egz: ./htdocs/  oswa  ./www/  oswa  ./public_html/)
+          server-dir: ${{ secrets.FTP_SERVER_DIR }}
+          protocol: ftps           # FTPS sekirize (LWS sipòte l). Mete 'ftp' si sa pa mache
+          # Pa voye fichye devlopman / git / node sou sit pwodiksyon an
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.github/**
+            **/node_modules/**
+            **/*.md
+            serve.ps1
+            server.js
+            served_main.js
+            temp_*.py
+            firebase.json
+            .firebaserc
+            firestore.rules
+            firestore.indexes.json

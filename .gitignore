@@ -16,3 +16,15 @@ Desktop.ini
 # Temporary files
 temp_*
 *.log
+
+# Node / dépendances
+node_modules/
+npm-debug.log*
+
+# Firebase (cache/logs lokal)
+.firebase/
+firebase-debug.log*
+
+# Fichye sansib (pa janm pouse)
+.env*
+serviceAccountKey.json

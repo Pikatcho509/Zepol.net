@@ -4,8 +4,20 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Zepòl - Espas Byennèt Ou</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#10b981">
+    <meta name="description" content="Plateforme de soutien santé mentale en créole haïtien — kominote, jwèt byennèt, liv ak sipò pou moun ki gen depresyon oswa anksyete.">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Zepòl">
+    <link rel="apple-touch-icon" href="assets/icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="assets/icon-512.png">
+
     <link rel="stylesheet" href="premium-dashboard.css?v=18.0.43-MOOD-ENHANCED">
     <link rel="stylesheet" href="styles.css?v=18.0.43-MOOD-ENHANCED">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -163,6 +175,7 @@
                                 <div class="welcome-text">
                                     <h2 style="margin:0; font-size:26px; color:var(--primary-dark);">Byenveni lakay,
                                         <span id="dash-welcome-name" style="color:var(--primary);">Zanmi</span>! 👋
+                                        <span class="premium-badge hidden" style="display:inline-flex; align-items:center; gap:4px; background:linear-gradient(135deg,#fbbf24,#f59e0b); color:white; font-size:0.7rem; padding:3px 10px; border-radius:12px; vertical-align:middle; font-weight:700; box-shadow:0 2px 6px rgba(245,158,11,0.3);">👑 PREMIUM</span>
                                     </h2>
                                     <p
                                         style="margin:10px 0 0; color:#555; font-size:1.1rem; line-height:1.5; font-style: italic;">
@@ -1149,6 +1162,8 @@
                                     Gratitid</button>
                                 <button class="wellness-btn" onclick="switchWellnessMode('depression')" style="background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe;">💙
                                     Depresyon</button>
+                                <button class="wellness-btn" onclick="window.openMeditation()" style="background: linear-gradient(135deg,#f0fdf4,#dcfce7); color: #15803d; border-color: #86efac;">🧘
+                                    Meditasyon</button>
                             </div>
 
                             <!-- 1. TESTS SECTION (New) -->
@@ -1563,7 +1578,7 @@
                                     <li style="display: flex; align-items: center; gap: 8px; color: var(--text-dark);"><i class="fas fa-check" style="color: var(--primary);"></i> Meditasyon odyo</li>
                                     <li style="display: flex; align-items: center; gap: 8px; color: var(--text-muted);"><i class="fas fa-times" style="color: #cbd5e0;"></i> Konsiltasyon prive</li>
                                 </ul>
-                                <button onclick="alert('Abònman Premium ap disponib byento! Mèsi pou pasyans ou.')" style="width: 100%; padding: 12px; border-radius: 25px; border: none; background: var(--primary); color: white; font-weight: 600; cursor: pointer; box-shadow: 0 4px 15px rgba(16,185,129,0.3);">Chwazi Pro</button>
+                                <button id="plan-pro-btn" onclick="window.selectPlan('pro')" style="width: 100%; padding: 12px; border-radius: 25px; border: none; background: var(--primary); color: white; font-weight: 600; cursor: pointer; box-shadow: 0 4px 15px rgba(16,185,129,0.3);">Chwazi Pro</button>
                             </div>
 
                             <!-- Ultimate -->
@@ -1577,7 +1592,7 @@
                                     <li style="display: flex; align-items: center; gap: 8px; color: var(--text-dark);"><i class="fas fa-check" style="color: #f59e0b;"></i> Sipò prioritè</li>
                                     <li style="display: flex; align-items: center; gap: 8px; color: var(--text-dark);"><i class="fas fa-check" style="color: #f59e0b;"></i> Badge eksklizif 👑</li>
                                 </ul>
-                                <button onclick="alert('Abònman Ilimite ap disponib byento! Mèsi pou pasyans ou.')" style="width: 100%; padding: 12px; border-radius: 25px; border: none; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; font-weight: 600; cursor: pointer; box-shadow: 0 4px 15px rgba(245,158,11,0.3);">Chwazi Ilimite</button>
+                                <button id="plan-ultimate-btn" onclick="window.selectPlan('ultimate')" style="width: 100%; padding: 12px; border-radius: 25px; border: none; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; font-weight: 600; cursor: pointer; box-shadow: 0 4px 15px rgba(245,158,11,0.3);">Chwazi Ilimite</button>
                             </div>
                         </div>
 
@@ -1589,19 +1604,22 @@
                                     <div style="font-size: 2rem; margin-bottom: 8px;">📘</div>
                                     <h4 style="margin: 0 0 5px;">Ebook Anti-Strès</h4>
                                     <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0 0 10px;">50 teknik pou jere strès</p>
-                                    <span style="font-weight: 700; color: var(--primary);">$4.99</span>
+                                    <div style="font-weight: 700; color: var(--primary); margin-bottom: 10px;">$4.99</div>
+                                    <button onclick="window.buyProduct('ebook-stress')" style="width:100%; padding:8px; border-radius:20px; border:none; background:var(--primary); color:white; font-weight:600; cursor:pointer; font-size:0.85rem;"><i class="fas fa-shopping-cart"></i> Achte</button>
                                 </div>
                                 <div style="padding: 15px; background: #f8fafc; border-radius: 12px; text-align: center;">
                                     <div style="font-size: 2rem; margin-bottom: 8px;">🧘</div>
                                     <h4 style="margin: 0 0 5px;">Meditasyon Gide</h4>
                                     <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0 0 10px;">10 sesyon odyo kalman</p>
-                                    <span style="font-weight: 700; color: var(--primary);">$7.99</span>
+                                    <div style="font-weight: 700; color: var(--primary); margin-bottom: 10px;">$7.99</div>
+                                    <button onclick="window.buyProduct('meditation-pack')" style="width:100%; padding:8px; border-radius:20px; border:none; background:var(--primary); color:white; font-weight:600; cursor:pointer; font-size:0.85rem;"><i class="fas fa-shopping-cart"></i> Achte</button>
                                 </div>
                                 <div style="padding: 15px; background: #f8fafc; border-radius: 12px; text-align: center;">
                                     <div style="font-size: 2rem; margin-bottom: 8px;">📓</div>
                                     <h4 style="margin: 0 0 5px;">Jounal PDF</h4>
                                     <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0 0 10px;">Jounal refleksyon 30 jou</p>
-                                    <span style="font-weight: 700; color: var(--primary);">$2.99</span>
+                                    <div style="font-weight: 700; color: var(--primary); margin-bottom: 10px;">$2.99</div>
+                                    <button onclick="window.buyProduct('journal-pdf')" style="width:100%; padding:8px; border-radius:20px; border:none; background:var(--primary); color:white; font-weight:600; cursor:pointer; font-size:0.85rem;"><i class="fas fa-shopping-cart"></i> Achte</button>
                                 </div>
                             </div>
                         </div>
@@ -1610,7 +1628,7 @@
                         <div class="glass-panel" style="padding: 25px; border-radius: 15px; margin-bottom: 25px; background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);">
                             <h3 style="margin: 0 0 10px 0; color: #4338ca;"><i class="fas fa-user-md"></i> Konsiltasyon ak Pwofesyonèl</h3>
                             <p style="color: #555; margin-bottom: 15px;">Rezève yon sesyon ak yon sikològ oswa yon coach sètifye atravè Zepòl.</p>
-                            <button onclick="alert('Sèvis konsiltasyon ap disponib byento!')" style="background: #4338ca; color: white; border: none; padding: 12px 25px; border-radius: 25px; font-weight: 600; cursor: pointer;">Pran Randevou →</button>
+                            <button onclick="window.openCoachingModal()" style="background: #4338ca; color: white; border: none; padding: 12px 25px; border-radius: 25px; font-weight: 600; cursor: pointer;">Pran Randevou →</button>
                         </div>
                     </div>
                 </div>
@@ -2320,6 +2338,174 @@
         </div>
     </div>
 
+    <!-- UNIFIED PAYMENT / CHECKOUT MODAL -->
+    <div id="checkout-modal" class="modal hidden">
+        <div class="modal-content glass-panel" style="max-width: 480px;">
+            <span class="close-modal" onclick="closeModal('checkout-modal')">&times;</span>
+            <div style="text-align:center; margin-bottom:18px;">
+                <div id="checkout-icon" style="font-size:42px; margin-bottom:8px;">⭐</div>
+                <h3 id="checkout-title" style="color:var(--primary-dark); margin:0;">Abònman Pro</h3>
+                <p id="checkout-price" style="font-size:1.8rem; font-weight:800; color:var(--primary); margin:8px 0 0;">$5<span style="font-size:0.9rem; font-weight:400; color:var(--text-muted);">/mwa</span></p>
+            </div>
+
+            <!-- Step 1: choose payment method -->
+            <div id="checkout-step-method">
+                <p style="color:#6b7280; font-size:0.9rem; margin-bottom:14px; text-align:center;">Chwazi metòd peman ou:</p>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:15px;">
+                    <button class="checkout-pay-btn" onclick="window.selectCheckoutMethod('moncash')" style="background:#f0fdf4; border:2px solid #86efac; border-radius:12px; padding:14px; cursor:pointer; text-align:center;">
+                        <div style="font-size:1.6rem;">📱</div><div style="font-weight:600; color:#15803d; font-size:0.85rem;">MonCash</div>
+                    </button>
+                    <button class="checkout-pay-btn" onclick="window.selectCheckoutMethod('natcash')" style="background:#eff6ff; border:2px solid #93c5fd; border-radius:12px; padding:14px; cursor:pointer; text-align:center;">
+                        <div style="font-size:1.6rem;">💳</div><div style="font-weight:600; color:#1d4ed8; font-size:0.85rem;">NatCash</div>
+                    </button>
+                    <button class="checkout-pay-btn" onclick="window.selectCheckoutMethod('paypal')" style="background:#fefce8; border:2px solid #fde047; border-radius:12px; padding:14px; cursor:pointer; text-align:center;">
+                        <div style="font-size:1.6rem;">🌐</div><div style="font-weight:600; color:#a16207; font-size:0.85rem;">PayPal</div>
+                    </button>
+                    <button class="checkout-pay-btn" onclick="window.selectCheckoutMethod('card')" style="background:#faf5ff; border:2px solid #d8b4fe; border-radius:12px; padding:14px; cursor:pointer; text-align:center;">
+                        <div style="font-size:1.6rem;">💰</div><div style="font-weight:600; color:#7e22ce; font-size:0.85rem;">Kat Bankè</div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 2: payment instructions + confirm -->
+            <div id="checkout-step-pay" style="display:none;">
+                <div id="checkout-instructions" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin-bottom:15px;"></div>
+                <div style="margin-bottom:12px;">
+                    <label style="font-size:0.85rem; color:#6b7280; display:block; margin-bottom:6px;">Nimewo referans tranzaksyon (opsyonèl):</label>
+                    <input type="text" id="checkout-txref" placeholder="Egz: MC-12345678" style="width:100%; padding:10px 14px; border:1px solid #e2e8f0; border-radius:10px; outline:none;">
+                </div>
+                <button onclick="window.confirmCheckout()" class="btn-primary" style="width:100%; border-radius:25px; margin-bottom:8px;">
+                    <i class="fas fa-check"></i> Mwen fè peman an
+                </button>
+                <button onclick="window.backToCheckoutMethod()" style="width:100%; background:none; border:none; color:#6b7280; cursor:pointer; padding:8px; font-size:0.85rem;">← Chanje metòd</button>
+            </div>
+
+            <p style="font-size:0.75rem; color:#94a3b8; text-align:center; margin-top:14px;">
+                <i class="fas fa-shield-alt"></i> Ekip Zepòl ap verifye peman w nan 24è epi aktive abònman an.
+            </p>
+        </div>
+    </div>
+
+    <!-- ADMIN PANEL MODAL (pikatcho77 only) -->
+    <div id="admin-modal" class="modal hidden">
+        <div class="modal-content glass-panel" style="max-width: 760px; max-height: 90vh; overflow-y: auto; padding: 0;">
+            <div style="position: sticky; top: 0; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: white; padding: 18px 22px; border-radius: 15px 15px 0 0; display: flex; justify-content: space-between; align-items: center; z-index: 10;">
+                <div>
+                    <h3 style="margin: 0; color: white;"><i class="fas fa-shield-alt" style="color:#fbbf24;"></i> Panèl Admin Zepòl</h3>
+                    <span style="font-size: 0.78rem; opacity: 0.7;">Kontwòl plan, peman ak demand yo</span>
+                </div>
+                <span class="close-modal" onclick="closeModal('admin-modal')" style="color: white; font-size: 1.6rem;">&times;</span>
+            </div>
+
+            <!-- Admin tabs -->
+            <div style="display: flex; gap: 4px; padding: 12px 16px 0; flex-wrap: wrap; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                <button class="admin-tab active" onclick="window.switchAdminTab('subscriptions', this)" data-count-key="subscriptions" style="background: var(--primary); color: white; border: none; padding: 8px 14px; border-radius: 10px 10px 0 0; cursor: pointer; font-size: 0.82rem; font-weight: 600;">⭐ Abònman <span class="admin-badge"></span></button>
+                <button class="admin-tab" onclick="window.switchAdminTab('purchases', this)" style="background: #e2e8f0; color: #475569; border: none; padding: 8px 14px; border-radius: 10px 10px 0 0; cursor: pointer; font-size: 0.82rem; font-weight: 600;">🛒 Acha <span class="admin-badge"></span></button>
+                <button class="admin-tab" onclick="window.switchAdminTab('support_requests', this)" style="background: #e2e8f0; color: #475569; border: none; padding: 8px 14px; border-radius: 10px 10px 0 0; cursor: pointer; font-size: 0.82rem; font-weight: 600;">🤝 Èd <span class="admin-badge"></span></button>
+                <button class="admin-tab" onclick="window.switchAdminTab('coaching_requests', this)" style="background: #e2e8f0; color: #475569; border: none; padding: 8px 14px; border-radius: 10px 10px 0 0; cursor: pointer; font-size: 0.82rem; font-weight: 600;">🩺 Randevou <span class="admin-badge"></span></button>
+                <button class="admin-tab" onclick="window.switchAdminTab('reports', this)" style="background: #e2e8f0; color: #475569; border: none; padding: 8px 14px; border-radius: 10px 10px 0 0; cursor: pointer; font-size: 0.82rem; font-weight: 600;">🚩 Rapò <span class="admin-badge"></span></button>
+            </div>
+
+            <!-- Manual plan override -->
+            <div style="padding: 14px 20px; background: #fffbeb; border-bottom: 1px solid #fde68a;">
+                <p style="margin: 0 0 8px; font-size: 0.8rem; font-weight: 600; color: #92400e;"><i class="fas fa-bolt"></i> Mete plan manyèlman (pa imèl):</p>
+                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                    <input type="email" id="admin-manual-email" placeholder="imèl itilizatè" style="flex: 1; min-width: 160px; padding: 8px 12px; border: 1px solid #fde68a; border-radius: 8px; outline: none; font-size: 0.85rem;">
+                    <select id="admin-manual-plan" style="padding: 8px; border: 1px solid #fde68a; border-radius: 8px; font-size: 0.85rem; background: white;">
+                        <option value="pro">Pro</option>
+                        <option value="ultimate">Ilimite</option>
+                        <option value="free">Gratis (retire)</option>
+                    </select>
+                    <button onclick="window.adminSetPlanManual()" style="background: #f59e0b; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem;">Aplike</button>
+                </div>
+            </div>
+
+            <!-- Content -->
+            <div id="admin-content" style="padding: 18px 20px; min-height: 250px;">
+                <div style="text-align: center; color: #94a3b8; padding: 40px;"><i class="fas fa-spinner fa-spin"></i> Ap chaje...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PREMIUM MEDITATION MODAL -->
+    <div id="meditation-modal" class="modal hidden">
+        <div class="modal-content glass-panel" style="max-width: 500px; text-align: center;">
+            <span class="close-modal" onclick="window.stopMeditation(); closeModal('meditation-modal');">&times;</span>
+            <h3 style="color: var(--primary-dark);"><i class="fas fa-spa" style="color:var(--primary);"></i> Meditasyon Gide</h3>
+            <p id="meditation-subtitle" style="color: #6b7280; font-size: 0.9rem; margin-bottom: 20px;">Chwazi yon sesyon pou kalme lespri w</p>
+
+            <div id="meditation-list" style="display: flex; flex-direction: column; gap: 10px;">
+                <!-- Sessions injected -->
+            </div>
+
+            <div id="meditation-player" style="display: none; margin-top: 10px;">
+                <div id="meditation-orb" style="width: 150px; height: 150px; border-radius: 50%; margin: 20px auto; background: radial-gradient(circle, var(--primary) 0%, var(--accent) 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; transition: transform 4s ease-in-out; box-shadow: 0 0 50px rgba(16,185,129,0.4);">
+                    <span id="meditation-phase">Pare...</span>
+                </div>
+                <p id="meditation-guide" style="color: var(--text-dark); font-size: 1.05rem; min-height: 50px; line-height: 1.6;"></p>
+                <div style="font-size: 1.3rem; font-weight: 700; color: var(--primary); margin: 10px 0;"><span id="meditation-timer">5:00</span></div>
+                <button onclick="window.stopMeditation()" class="btn-secondary" style="border-radius: 25px;">Sispann</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- COACHING BOOKING MODAL -->
+    <div id="coaching-modal" class="modal hidden">
+        <div class="modal-content glass-panel" style="max-width: 460px;">
+            <span class="close-modal" onclick="closeModal('coaching-modal')">&times;</span>
+            <h3 style="color:#4338ca;"><i class="fas fa-user-md"></i> Pran Randevou ak Pwofesyonèl</h3>
+            <p style="color:#6b7280; font-size:0.9rem; margin-bottom:18px;">Ranpli fòm sa a epi n ap kontakte w pou konfime randevou w.</p>
+            <div style="display:flex; flex-direction:column; gap:12px;">
+                <div>
+                    <label style="font-size:0.85rem; color:#374151; display:block; margin-bottom:5px;">Kalite sèvis</label>
+                    <select id="coaching-type" style="width:100%; padding:11px 14px; border:1px solid #e2e8f0; border-radius:10px; outline:none; background:white;">
+                        <option value="sikològ">Sikològ (terapi)</option>
+                        <option value="coach">Coach byennèt</option>
+                        <option value="sikyat">Sikyat (medikaman)</option>
+                        <option value="konseye">Konseye espirityèl</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:0.85rem; color:#374151; display:block; margin-bottom:5px;">Telefòn / WhatsApp</label>
+                    <input type="tel" id="coaching-phone" placeholder="+509 ..." style="width:100%; padding:11px 14px; border:1px solid #e2e8f0; border-radius:10px; outline:none;">
+                </div>
+                <div>
+                    <label style="font-size:0.85rem; color:#374151; display:block; margin-bottom:5px;">Lè ou pi pito</label>
+                    <input type="text" id="coaching-date" placeholder="Egz: Samdi maten, oswa apre 5è" style="width:100%; padding:11px 14px; border:1px solid #e2e8f0; border-radius:10px; outline:none;">
+                </div>
+                <div>
+                    <label style="font-size:0.85rem; color:#374151; display:block; margin-bottom:5px;">Nòt (opsyonèl)</label>
+                    <textarea id="coaching-note" placeholder="Sa ou ta renmen pale sou li..." style="width:100%; min-height:70px; padding:11px 14px; border:1px solid #e2e8f0; border-radius:10px; outline:none; resize:vertical;"></textarea>
+                </div>
+                <button onclick="window.submitCoaching()" class="btn-primary" style="width:100%; border-radius:25px; background:#4338ca;">Voye Demand Randevou</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MEMBER SUPPORT REQUEST MODAL (mande èd) -->
+    <div id="support-request-modal" class="modal hidden">
+        <div class="modal-content glass-panel" style="max-width: 460px;">
+            <span class="close-modal" onclick="closeModal('support-request-modal')">&times;</span>
+            <h3 style="color:var(--secondary);"><i class="fas fa-hand-holding-heart"></i> Mande Èd pou Tèt Ou</h3>
+            <p style="color:#6b7280; font-size:0.9rem; margin-bottom:18px;">Kominote a ka ede w. Eksplike bezwen w epi n ap pataje l (avèk pèmisyon w) ak moun ki vle ede.</p>
+            <div style="display:flex; flex-direction:column; gap:12px;">
+                <div>
+                    <label style="font-size:0.85rem; color:#374151; display:block; margin-bottom:5px;">Pou kisa ou bezwen èd?</label>
+                    <input type="text" id="support-goal" placeholder="Egz: Medikaman, etid, manje..." style="width:100%; padding:11px 14px; border:1px solid #e2e8f0; border-radius:10px; outline:none;">
+                </div>
+                <div>
+                    <label style="font-size:0.85rem; color:#374151; display:block; margin-bottom:5px;">Montan ou bezwen (opsyonèl, USD)</label>
+                    <input type="number" id="support-amount" placeholder="Egz: 50" style="width:100%; padding:11px 14px; border:1px solid #e2e8f0; border-radius:10px; outline:none;">
+                </div>
+                <div>
+                    <label style="font-size:0.85rem; color:#374151; display:block; margin-bottom:5px;">Istwa w</label>
+                    <textarea id="support-story" placeholder="Eksplike sitiyasyon w..." style="width:100%; min-height:90px; padding:11px 14px; border:1px solid #e2e8f0; border-radius:10px; outline:none; resize:vertical;"></textarea>
+                </div>
+                <button onclick="window.submitSupportRequest()" class="btn-primary" style="width:100%; border-radius:25px; background:var(--secondary);">Voye Demand</button>
+            </div>
+        </div>
+    </div>
+
     <!-- NARUTO MOTIVATION MODAL -->
     <div id="naruto-modal" class="modal hidden">
         <div class="modal-content glass-panel"
@@ -2649,6 +2835,8 @@
                 <i class="fas fa-medal"></i> Badge Mwen 🏅</button>
             <button onclick="openModal('emotion-calendar-modal'); window.loadEmotionCalendar();" class="sidebar-btn-modern" style="color: #6b7280;">
                 <i class="fas fa-calendar-alt"></i> Kalandrye Emosyon 📅</button>
+            <button id="sidebar-admin-btn" onclick="window.openAdminPanel()" class="sidebar-btn-modern hidden" style="color: #fbbf24; border: 1px solid #fde68a; background: #1e293b; margin-top: 8px; font-weight: 700;">
+                <i class="fas fa-shield-alt"></i> Panèl Admin 🛡️</button>
 
             <div style="flex-grow: 1;"></div> <!-- Spacer -->
 
@@ -2714,6 +2902,52 @@
     <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 
     <script type="module" src="main.js?v=18.0.43-MOOD-ENHANCED"></script>
+
+    <!-- PWA: Service Worker Registration + Install Prompt -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('✅ Zepòl PWA aktive:', reg.scope))
+                    .catch(err => console.warn('⚠️ SW registration failed:', err));
+            });
+        }
+
+        // "Add to Home Screen" install prompt
+        let deferredPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            const btn = document.getElementById('pwa-install-btn');
+            if (btn) btn.classList.remove('hidden');
+        });
+        window.installZepolApp = async () => {
+            if (!deferredPrompt) {
+                if (window.NotificationSystem) window.NotificationSystem.show("Pou enstale: louvri meni navigatè a → 'Ajoute sou ekran akèy'.", "info");
+                return;
+            }
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted' && window.NotificationSystem) {
+                window.NotificationSystem.show("Zepòl ap enstale sou telefòn ou! 🎉", "success");
+            }
+            deferredPrompt = null;
+            const btn = document.getElementById('pwa-install-btn');
+            if (btn) btn.classList.add('hidden');
+        };
+        // Hide install button once installed
+        window.addEventListener('appinstalled', () => {
+            const btn = document.getElementById('pwa-install-btn');
+            if (btn) btn.classList.add('hidden');
+            if (window.NotificationSystem) window.NotificationSystem.show("Mèsi! Zepòl enstale. ✨", "success");
+        });
+    </script>
+
+    <!-- PWA Install Floating Button -->
+    <button id="pwa-install-btn" onclick="window.installZepolApp()" class="hidden"
+        style="position: fixed; bottom: 90px; left: 20px; z-index: 8000; background: var(--primary); color: white; border: none; padding: 12px 18px; border-radius: 30px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 15px rgba(16,185,129,0.4); display: flex; align-items: center; gap: 8px; font-size: 0.9rem;">
+        <i class="fas fa-download"></i> Enstale App la
+    </button>
 
     <!-- Mini Breathing Circle (Hidden by default) -->
     <div id="mini-breathe-circle" class="breathing-circle hidden"

@@ -1,0 +1,63 @@
+{
+  "name": "Zepòl - Espas Byennèt Ou",
+  "short_name": "Zepòl",
+  "description": "Plateforme de soutien santé mentale en créole haïtien. Kominote, jwèt byennèt, liv, ak sipò pou moun ki gen depresyon oswa anksyete.",
+  "lang": "ht",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#10b981",
+  "categories": ["health", "lifestyle", "medical"],
+  "icons": [
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "SOS Ijans",
+      "short_name": "SOS",
+      "description": "Jwenn èd ijans imedyatman",
+      "url": "./index.html?action=sos",
+      "icons": [{ "src": "assets/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Pale ak AI",
+      "short_name": "Chat",
+      "description": "Pale ak Asistan Zepòl la",
+      "url": "./index.html?action=chat",
+      "icons": [{ "src": "assets/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Kominote",
+      "short_name": "Kominote",
+      "description": "Pataje ak kominote a",
+      "url": "./index.html?action=community",
+      "icons": [{ "src": "assets/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
