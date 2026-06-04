@@ -2805,9 +2805,12 @@
     <!-- GLOBAL SIDEBAR -->
     <div id="dashboard-sidebar" class="dashboard-sidebar glass-panel">
         <div class="sidebar-header"
-            style="padding-bottom: 20px; border-bottom: 1px solid rgba(0,0,0,0.05); margin-bottom: 20px;">
-            <h3 style="font-size: 1.5rem; color: var(--primary-dark);">Menu</h3>
-            <button id="sidebar-close" class="btn-icon"><i class="fas fa-times"></i></button>
+            style="padding-bottom: 15px; border-bottom: 1px solid rgba(0,0,0,0.05); margin-bottom: 15px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h3 style="font-size: 1.5rem; color: var(--primary-dark); margin:0;">Menu</h3>
+                <button id="sidebar-close" class="btn-icon"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="sidebar-login-info" style="margin-top:8px; font-size:0.78rem; color:#94a3b8; word-break:break-all;">Pa konekte</div>
         </div>
         <nav class="sidebar-nav" style="display: flex; flex-direction: column; gap: 5px;">
             <button onclick="navigateTo('home')" class="sidebar-btn-modern active"><i class="fas fa-home"></i> Akey

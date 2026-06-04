@@ -3171,6 +3171,20 @@ window.refreshPremiumUI = () => {
     document.querySelectorAll('.admin-only, #sidebar-admin-btn').forEach(el => {
         el.classList.toggle('hidden', !isAdmin);
     });
+
+    // Show login identity in sidebar (pou ede w wè ak ki kont ou konekte)
+    const loginInfo = document.getElementById('sidebar-login-info');
+    if (loginInfo) {
+        if (user.loggedIn && user.email) {
+            loginInfo.innerHTML = isAdmin
+                ? `🛡️ <strong style="color:#f59e0b;">ADMIN</strong> · ${user.email}`
+                : `Konekte kòm: ${user.email}`;
+        } else if (user.loggedIn) {
+            loginInfo.innerHTML = `Konekte (san imèl: ${user.name || '?'})`;
+        } else {
+            loginInfo.textContent = 'Pa konekte';
+        }
+    }
 };
 
 // URL param ?admin=1 → ouvri panel dirèkteman (si admin)
