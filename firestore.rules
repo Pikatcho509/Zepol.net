@@ -5,11 +5,12 @@ service cloud.firestore {
     function isSignedIn() { return request.auth != null; }
     function isOwner(userId) { return request.auth.uid == userId; }
     function isMyData() { return request.resource.data.userId == request.auth.uid; }
+    function isAdmin() { return isSignedIn() && request.auth.token.email == 'pikatcho77@gmail.com'; }
 
     // ── USERS ────────────────────────────────────────────────────
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && isOwner(userId);
+      allow write: if isSignedIn() && (isOwner(userId) || isAdmin());
 
       match /notifications/{notifId} {
         allow read, delete: if isSignedIn() && isOwner(userId);
@@ -138,6 +139,40 @@ service cloud.firestore {
       allow read: if isSignedIn() && resource.data.recipientId == request.auth.uid;
       allow create: if isSignedIn();
       allow update, delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+    }
+
+    // ── SUBSCRIPTIONS (premium) ──────────────────────────────────
+    match /subscriptions/{subId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow update: if isAdmin(); // admin validates payment
+    }
+
+    // ── PURCHASES (digital products) ─────────────────────────────
+    match /purchases/{purchaseId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow update: if isAdmin();
+    }
+
+    // ── REPORTS (moderation) ─────────────────────────────────────
+    match /reports/{reportId} {
+      allow create: if isSignedIn() && request.resource.data.reporterId == request.auth.uid;
+      allow read, update: if isAdmin();
+    }
+
+    // ── SUPPORT REQUESTS (mande èd) ──────────────────────────────
+    match /support_requests/{reqId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow update: if isAdmin();
+    }
+
+    // ── COACHING REQUESTS ────────────────────────────────────────
+    match /coaching_requests/{reqId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow update: if isAdmin();
     }
 
     // ── DEFAULT DENY ─────────────────────────────────────────────

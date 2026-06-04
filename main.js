@@ -773,6 +773,29 @@ window.closeCamera = () => {
 };
 
 
+// AI message limit for free users
+const FREE_AI_DAILY_LIMIT = 10;
+function checkAILimit() {
+    const plan = dataManager.getUserPlan ? dataManager.getUserPlan() : 'free';
+    if (plan === 'pro' || plan === 'ultimate') return { allowed: true }; // unlimited
+
+    const today = new Date().toDateString();
+    let data = JSON.parse(localStorage.getItem('zepol_ai_usage') || '{}');
+    if (data.date !== today) { data = { date: today, count: 0 }; }
+
+    if (data.count >= FREE_AI_DAILY_LIMIT) {
+        return { allowed: false, remaining: 0 };
+    }
+    return { allowed: true, remaining: FREE_AI_DAILY_LIMIT - data.count, data };
+}
+function incrementAIUsage() {
+    const today = new Date().toDateString();
+    let data = JSON.parse(localStorage.getItem('zepol_ai_usage') || '{}');
+    if (data.date !== today) data = { date: today, count: 0 };
+    data.count++;
+    localStorage.setItem('zepol_ai_usage', JSON.stringify(data));
+}
+
 window.sendUserMessage = async () => {
     const input = document.getElementById('bot-input');
     const text = input.value.trim();
@@ -780,10 +803,23 @@ window.sendUserMessage = async () => {
 
     if (!text && !image) return;
 
+    // Check AI limit for free users
+    const limit = checkAILimit();
+    if (!limit.allowed) {
+        addMessageToChat('user', text, image);
+        input.value = '';
+        window.clearChatImage();
+        setTimeout(() => {
+            addMessageToChat('bot', `Ou rive nan limit ${FREE_AI_DAILY_LIMIT} mesaj pa jou pou plan Gratis la. 🌿<br><br>Pou pale san limit ak Asistan Zepòl la, <strong>abòne nan Premium</strong>!<br><br><button onclick="window.closeChat&&window.toggleChat(); navigateTo('premium');" style="background:var(--primary);color:white;border:none;padding:8px 16px;border-radius:20px;cursor:pointer;font-weight:600;margin-top:5px;">Wè Plan Premium ⭐</button>`);
+        }, 400);
+        return;
+    }
+
     // 1. Add User Message
     addMessageToChat('user', text, image);
     input.value = '';
     window.clearChatImage(); // Clear image after sending
+    incrementAIUsage();
 
     window.chatHistory.push({ role: 'user', text: text }); // Note: We don't store base64 in history to save memory
 
@@ -997,6 +1033,10 @@ window.navigateTo = function (viewId) {
 
     if (viewId === 'messages') {
         if (window.renderMessagingUI) window.renderMessagingUI();
+    }
+
+    if (viewId === 'premium') {
+        if (window.refreshPremiumUI) window.refreshPremiumUI();
     }
 
     if (viewId === 'games' || viewId === 'wellness') {
@@ -1512,6 +1552,10 @@ window.toggleDashboardSidebar = () => {
     if (sidebar) {
         sidebar.classList.toggle('active');
         if (overlay) overlay.classList.toggle('hidden');
+        // Re-check admin status each time the menu opens
+        if (sidebar.classList.contains('active') && window.refreshPremiumUI) {
+            window.refreshPremiumUI();
+        }
     }
 };
 
@@ -1602,6 +1646,7 @@ window.updateUserUI = () => {
         // Ensure Daily Affirmation is updated
         if (window.rotateDailyAffirmation) window.rotateDailyAffirmation();
         if (window.updateWelcomeMessage) window.updateWelcomeMessage();
+        if (window.refreshPremiumUI) window.refreshPremiumUI();
 
         window.checkPendingQuizResult();
 
@@ -2235,15 +2280,20 @@ window.handleReaction = async (postId, emoji) => {
     await dataManager.trackEngagement();
 };
 
-window.reportPost = (postId) => {
+window.reportPost = async (postId) => {
     const user = dataManager.getUser();
     if (!user.loggedIn) {
         openModal('auth-modal');
         return;
     }
-    if (confirm("Èske ou vle siyale pòs sa a pou kontni ki pa apwopriye?\n\nEkip moderasyon Zepòl la ap revize l.")) {
+    const reason = prompt("Poukisa w ap siyale pòs sa a?\n\n(Egz: Kontni ki pa apwopriye, awoyo, spam, danje...)", "Kontni ki pa apwopriye");
+    if (reason === null) return; // user cancelled
+    NotificationSystem.show("N ap voye rapò w...", "info");
+    const ok = await dataManager.reportPost(postId, reason);
+    if (ok) {
         NotificationSystem.show("Mèsi! Nou resevwa rapò w la. Ekip moderasyon an ap gade sa.", "success");
-        // In production: dataManager.reportPost(postId, user.uid);
+    } else {
+        NotificationSystem.show("Erè pandan voye rapò a. Eseye ankò.", "error");
     }
 };
 
@@ -2922,7 +2972,503 @@ window.openMemberSupportRequest = () => {
         openModal('auth-modal');
         return;
     }
-    NotificationSystem.show('Fonksyon "Mande Èd" ap disponib byento. Kontakte sipozepol@gmail.com pou kounye a.', 'info');
+    openModal('support-request-modal');
+};
+
+window.submitSupportRequest = async () => {
+    const goal = document.getElementById('support-goal')?.value.trim();
+    const amount = document.getElementById('support-amount')?.value;
+    const story = document.getElementById('support-story')?.value.trim();
+    if (!goal || !story) return NotificationSystem.show('Tanpri ranpli bezwen w ak istwa w.', 'warning');
+
+    NotificationSystem.show('N ap voye demand ou...', 'info');
+    const res = await dataManager.requestSupport({ goal, amount, story });
+    if (res.success) {
+        closeModal('support-request-modal');
+        NotificationSystem.show(res.message, 'success');
+        ['support-goal', 'support-amount', 'support-story'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    } else {
+        NotificationSystem.show(res.message, 'error');
+    }
+};
+
+// ═══════════════════════════════════════════════════════════
+//  PREMIUM / CHECKOUT SYSTEM
+// ═══════════════════════════════════════════════════════════
+const PLAN_INFO = {
+    pro:      { name: 'Abònman Pro',     price: '$5',  amount: 5,  icon: '⭐', perMonth: true },
+    ultimate: { name: 'Abònman Ilimite', price: '$15', amount: 15, icon: '👑', perMonth: true }
+};
+const PRODUCT_INFO = {
+    'ebook-stress':   { name: 'Ebook Anti-Strès',  price: '$4.99', icon: '📘' },
+    'meditation-pack':{ name: 'Meditasyon Gide',   price: '$7.99', icon: '🧘' },
+    'journal-pdf':    { name: 'Jounal PDF 30 jou', price: '$2.99', icon: '📓' }
+};
+
+const PAYMENT_DETAILS = {
+    moncash:  { title: '📱 MonCash',  color: '#15803d', steps: ['Ouvri aplikasyon MonCash ou a', 'Chwazi "Transfè Lajan"', 'Nimewo: <strong>+509 4005-7183</strong>', 'Antre montan an: <strong>{AMOUNT}</strong>', 'Nan nòt: ekri "<strong>{REF}</strong>"', 'Konfime epi kopye nimewo tranzaksyon an'] },
+    natcash:  { title: '💳 NatCash',  color: '#1d4ed8', steps: ['Ouvri NatCash', 'Chwazi "Transfert"', 'Nimewo: <strong>+509 4905-0000</strong>', 'Antre montan an: <strong>{AMOUNT}</strong>', 'Referans: "<strong>{REF}</strong>"', 'Konfime transfè a'] },
+    paypal:   { title: '🌐 PayPal',   color: '#a16207', steps: ['Ale sou <strong>paypal.me/ZepolSupport</strong>', 'Antre montan an: <strong>{AMOUNT}</strong> (USD)', 'Nan nòt: "<strong>{REF}</strong>"', 'Voye peman an', 'Kopye ID tranzaksyon PayPal la'] },
+    card:     { title: '💰 Kat Bankè', color: '#7e22ce', steps: ['Voye yon imèl bay <strong>sipozepol@gmail.com</strong>', 'Sijè: "<strong>{REF}</strong>"', 'N ap voye yon lyen peman sekirize ba ou', 'Montan: <strong>{AMOUNT}</strong>'] }
+};
+
+let currentCheckout = null; // { type:'plan'|'product', id, name, price, amount }
+
+window.selectPlan = (planKey) => {
+    const user = dataManager.getUser();
+    if (!user.loggedIn) {
+        NotificationSystem.show('Konekte pou w abòne.', 'info');
+        openModal('auth-modal');
+        return;
+    }
+    const plan = PLAN_INFO[planKey];
+    if (!plan) return;
+    currentCheckout = { type: 'plan', id: planKey, name: plan.name, price: plan.price, amount: '$' + plan.amount };
+    _openCheckout(plan.icon, plan.name, plan.price + (plan.perMonth ? '<span style="font-size:0.9rem;font-weight:400;color:var(--text-muted);">/mwa</span>' : ''));
+};
+
+window.buyProduct = (productId) => {
+    const user = dataManager.getUser();
+    if (!user.loggedIn) {
+        NotificationSystem.show('Konekte pou w achte.', 'info');
+        openModal('auth-modal');
+        return;
+    }
+    const prod = PRODUCT_INFO[productId];
+    if (!prod) return;
+    currentCheckout = { type: 'product', id: productId, name: prod.name, price: prod.price, amount: prod.price };
+    _openCheckout(prod.icon, prod.name, prod.price);
+};
+
+function _openCheckout(icon, title, priceHtml) {
+    document.getElementById('checkout-icon').textContent = icon;
+    document.getElementById('checkout-title').textContent = title;
+    document.getElementById('checkout-price').innerHTML = priceHtml;
+    document.getElementById('checkout-step-method').style.display = 'block';
+    document.getElementById('checkout-step-pay').style.display = 'none';
+    const txref = document.getElementById('checkout-txref');
+    if (txref) txref.value = '';
+    openModal('checkout-modal');
+}
+
+window.selectCheckoutMethod = (method) => {
+    if (!currentCheckout) return;
+    currentCheckout.method = method;
+    const d = PAYMENT_DETAILS[method];
+    const ref = 'ZEP-' + currentCheckout.id.toUpperCase().slice(0, 6) + '-' + Date.now().toString().slice(-5);
+    currentCheckout.ref = ref;
+
+    const stepsHtml = d.steps.map(s =>
+        s.replace('{AMOUNT}', currentCheckout.amount).replace('{REF}', ref)
+    ).map(s => `<li style="margin-bottom:7px;">${s}</li>`).join('');
+
+    document.getElementById('checkout-instructions').innerHTML = `
+        <h4 style="margin:0 0 12px; color:${d.color};">${d.title}</h4>
+        <ol style="padding-left:18px; color:#374151; font-size:0.88rem; line-height:1.5;">${stepsHtml}</ol>`;
+    document.getElementById('checkout-step-method').style.display = 'none';
+    document.getElementById('checkout-step-pay').style.display = 'block';
+};
+
+window.backToCheckoutMethod = () => {
+    document.getElementById('checkout-step-method').style.display = 'block';
+    document.getElementById('checkout-step-pay').style.display = 'none';
+};
+
+window.confirmCheckout = async () => {
+    if (!currentCheckout) return;
+    const txRef = document.getElementById('checkout-txref')?.value.trim() || currentCheckout.ref;
+    NotificationSystem.show('N ap anrejistre demand ou...', 'info');
+
+    let res;
+    if (currentCheckout.type === 'plan') {
+        res = await dataManager.subscribeToPlan(currentCheckout.id, currentCheckout.method, txRef);
+    } else {
+        res = await dataManager.purchaseProduct(currentCheckout.id, currentCheckout.name, currentCheckout.price, currentCheckout.method, txRef);
+    }
+
+    if (res && res.success) {
+        closeModal('checkout-modal');
+        // Show confirmation modal
+        openModal('thanks-modal');
+        const thanksModal = document.getElementById('thanks-modal');
+        if (thanksModal) {
+            const p = thanksModal.querySelector('p');
+            if (p) p.textContent = currentCheckout.type === 'plan'
+                ? `Mèsi! Demand abònman ${currentCheckout.name} w resevwa. Ekip la ap verifye peman w nan 24è epi aktive l. N ap voye w yon konfimasyon.`
+                : `Mèsi! Demand acha "${currentCheckout.name}" w resevwa. N ap voye pwodwi a ba ou apre konfimasyon peman an.`;
+        }
+        NotificationSystem.show(res.message, 'success');
+        currentCheckout = null;
+    } else {
+        NotificationSystem.show(res?.message || 'Erè. Eseye ankò.', 'error');
+    }
+};
+
+// ── COACHING ─────────────────────────────────────────────────
+window.openCoachingModal = () => {
+    const user = dataManager.getUser();
+    if (!user.loggedIn) {
+        NotificationSystem.show('Konekte pou pran randevou.', 'info');
+        openModal('auth-modal');
+        return;
+    }
+    openModal('coaching-modal');
+};
+
+window.submitCoaching = async () => {
+    const type = document.getElementById('coaching-type')?.value;
+    const phone = document.getElementById('coaching-phone')?.value.trim();
+    const preferredDate = document.getElementById('coaching-date')?.value.trim();
+    const note = document.getElementById('coaching-note')?.value.trim();
+    if (!phone) return NotificationSystem.show('Tanpri mete yon nimewo pou n ka kontakte w.', 'warning');
+
+    NotificationSystem.show('N ap voye demand randevou w...', 'info');
+    const res = await dataManager.bookCoaching({ type, phone, preferredDate, note });
+    if (res.success) {
+        closeModal('coaching-modal');
+        NotificationSystem.show(res.message, 'success');
+        ['coaching-phone', 'coaching-date', 'coaching-note'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    } else {
+        NotificationSystem.show(res.message, 'error');
+    }
+};
+
+// ── PREMIUM FEATURE GATES & UI ───────────────────────────────
+window.refreshPremiumUI = () => {
+    const plan = dataManager.getUserPlan ? dataManager.getUserPlan() : 'free';
+    const user = dataManager.getUser();
+    const isPremium = plan === 'pro' || plan === 'ultimate';
+
+    // Show premium badge in profile/header
+    document.querySelectorAll('.premium-badge').forEach(el => {
+        el.classList.toggle('hidden', !isPremium);
+    });
+
+    // Update plan card buttons
+    const proBtn = document.getElementById('plan-pro-btn');
+    const ultBtn = document.getElementById('plan-ultimate-btn');
+    const pending = user.pendingPlan;
+
+    if (proBtn) {
+        if (plan === 'pro') { proBtn.textContent = '✓ Plan Aktyèl'; proBtn.disabled = true; proBtn.style.opacity = '0.7'; }
+        else if (pending === 'pro') { proBtn.textContent = '⏳ Ap verifye...'; }
+        else { proBtn.innerHTML = 'Chwazi Pro'; proBtn.disabled = false; proBtn.style.opacity = '1'; }
+    }
+    if (ultBtn) {
+        if (plan === 'ultimate') { ultBtn.textContent = '✓ Plan Aktyèl'; ultBtn.disabled = true; ultBtn.style.opacity = '0.7'; }
+        else if (pending === 'ultimate') { ultBtn.textContent = '⏳ Ap verifye...'; }
+        else { ultBtn.innerHTML = 'Chwazi Ilimite'; ultBtn.disabled = false; ultBtn.style.opacity = '1'; }
+    }
+
+    // Unlock premium content markers
+    document.querySelectorAll('.premium-locked').forEach(el => {
+        el.classList.toggle('unlocked', isPremium);
+    });
+
+    // Show admin button only for admin
+    const isAdmin = dataManager.isAdmin && dataManager.isAdmin();
+    const adminBtn = document.getElementById('sidebar-admin-btn');
+    if (adminBtn) adminBtn.classList.toggle('hidden', !isAdmin);
+};
+
+// ═══════════════════════════════════════════════════════════
+//  ADMIN PANEL
+// ═══════════════════════════════════════════════════════════
+let adminCurrentTab = 'subscriptions';
+
+window.openAdminPanel = () => {
+    if (!dataManager.isAdmin || !dataManager.isAdmin()) {
+        NotificationSystem.show('Aksè rezève pou administratè.', 'warning');
+        return;
+    }
+    openModal('admin-modal');
+    window.switchAdminTab('subscriptions');
+};
+
+window.switchAdminTab = (tab, btnEl) => {
+    adminCurrentTab = tab;
+    // Update tab styles
+    document.querySelectorAll('.admin-tab').forEach(b => {
+        b.style.background = '#e2e8f0'; b.style.color = '#475569';
+    });
+    const activeBtn = btnEl || document.querySelector(`.admin-tab[onclick*="${tab}"]`);
+    if (activeBtn) { activeBtn.style.background = 'var(--primary)'; activeBtn.style.color = 'white'; }
+    window.loadAdminTab(tab);
+};
+
+window.loadAdminTab = async (tab) => {
+    const container = document.getElementById('admin-content');
+    if (!container) return;
+    container.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:40px;"><i class="fas fa-spinner fa-spin"></i> Ap chaje...</div>';
+
+    const items = await dataManager.adminFetch(tab);
+
+    if (!items.length) {
+        container.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:40px;"><i class="fas fa-inbox" style="font-size:2rem;opacity:0.4;"></i><p>Pa gen anyen nan seksyon sa a.</p></div>';
+        return;
+    }
+
+    // Render based on tab type
+    const renderers = {
+        subscriptions: _renderAdminSubscription,
+        purchases: _renderAdminPurchase,
+        support_requests: _renderAdminSupport,
+        coaching_requests: _renderAdminCoaching,
+        reports: _renderAdminReport
+    };
+    const render = renderers[tab] || (i => JSON.stringify(i));
+    container.innerHTML = items.map(render).join('');
+};
+
+function _statusBadge(status) {
+    const map = {
+        pending: ['#fef3c7', '#92400e', '⏳ An atant'],
+        active:  ['#dcfce7', '#15803d', '✓ Aktif'],
+        rejected:['#fee2e2', '#b91c1c', '✗ Rejte'],
+        delivered:['#dbeafe', '#1e40af', '📦 Livre'],
+        open:    ['#fef3c7', '#92400e', '🔴 Ouvè'],
+        resolved:['#dcfce7', '#15803d', '✓ Rezoud']
+    };
+    const [bg, col, txt] = map[status] || ['#f1f5f9', '#475569', status];
+    return `<span style="background:${bg};color:${col};padding:3px 10px;border-radius:12px;font-size:0.72rem;font-weight:600;">${txt}</span>`;
+}
+
+function _fmtDate(iso) {
+    if (!iso) return '';
+    try { return new Date(iso).toLocaleString('ht-HT', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }); }
+    catch(e) { return iso; }
+}
+
+function _adminCard(inner) {
+    return `<div style="background:white;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">${inner}</div>`;
+}
+
+function _renderAdminSubscription(s) {
+    const amount = s.plan === 'ultimate' ? '$15' : '$5';
+    const actions = s.status === 'pending' ? `
+        <div style="display:flex;gap:8px;margin-top:10px;">
+            <button onclick="window.adminActivate('${s.id}','${s.userId}','${s.plan}')" style="flex:1;background:#10b981;color:white;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.82rem;"><i class="fas fa-check"></i> Valide (1 mwa)</button>
+            <button onclick="window.adminActivate('${s.id}','${s.userId}','${s.plan}',12)" style="flex:1;background:#059669;color:white;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.82rem;">Valide (1 an)</button>
+            <button onclick="window.adminReject('subscriptions','${s.id}')" style="background:#ef4444;color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.82rem;"><i class="fas fa-times"></i></button>
+        </div>` : '';
+    return _adminCard(`
+        <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
+            <div>
+                <strong style="color:#1f2937;">${s.userName || 'Itilizatè'}</strong>
+                <span style="background:#faf5ff;color:#7e22ce;padding:2px 8px;border-radius:8px;font-size:0.72rem;margin-left:6px;">${s.plan?.toUpperCase()} ${amount}/mwa</span>
+                <div style="font-size:0.8rem;color:#6b7280;margin-top:4px;">📱 ${s.paymentMethod || '?'} · Ref: <code style="background:#f1f5f9;padding:1px 5px;border-radius:4px;">${s.txRef || 'N/A'}</code></div>
+                <div style="font-size:0.72rem;color:#94a3b8;margin-top:2px;">${_fmtDate(s.requestedAt)} · ${s.userEmail || ''}</div>
+            </div>
+            ${_statusBadge(s.status)}
+        </div>${actions}`);
+}
+
+function _renderAdminPurchase(p) {
+    const actions = p.status === 'pending' ? `
+        <div style="display:flex;gap:8px;margin-top:10px;">
+            <button onclick="window.adminMarkDelivered('${p.id}')" style="flex:1;background:#3b82f6;color:white;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.82rem;"><i class="fas fa-paper-plane"></i> Make Livre</button>
+            <button onclick="window.adminReject('purchases','${p.id}')" style="background:#ef4444;color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.82rem;"><i class="fas fa-times"></i></button>
+        </div>` : '';
+    return _adminCard(`
+        <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
+            <div>
+                <strong style="color:#1f2937;">${p.productName}</strong> <span style="color:var(--primary);font-weight:700;">${p.price}</span>
+                <div style="font-size:0.8rem;color:#6b7280;margin-top:4px;">${p.userName} · 📱 ${p.paymentMethod} · Ref: <code style="background:#f1f5f9;padding:1px 5px;border-radius:4px;">${p.txRef || 'N/A'}</code></div>
+                <div style="font-size:0.72rem;color:#94a3b8;margin-top:2px;">${_fmtDate(p.purchasedAt)}</div>
+            </div>
+            ${_statusBadge(p.status)}
+        </div>${actions}`);
+}
+
+function _renderAdminSupport(s) {
+    const actions = s.status === 'pending' ? `
+        <div style="display:flex;gap:8px;margin-top:10px;">
+            <button onclick="window.adminResolve('support_requests','${s.id}','approved')" style="flex:1;background:#10b981;color:white;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.82rem;"><i class="fas fa-check"></i> Apwouve & Pibliye</button>
+            <button onclick="window.adminReject('support_requests','${s.id}')" style="background:#ef4444;color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.82rem;"><i class="fas fa-times"></i></button>
+        </div>` : '';
+    return _adminCard(`
+        <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
+            <div style="flex:1;">
+                <strong style="color:#1f2937;">${s.userName}</strong> — ${s.goal} ${s.amount ? `<span style="color:var(--secondary);font-weight:700;">($${s.amount})</span>` : ''}
+                <p style="font-size:0.85rem;color:#475569;margin:6px 0;font-style:italic;">"${s.story}"</p>
+                <div style="font-size:0.72rem;color:#94a3b8;">${_fmtDate(s.createdAt)} · ${s.contact || ''}</div>
+            </div>
+            ${_statusBadge(s.status)}
+        </div>${actions}`);
+}
+
+function _renderAdminCoaching(c) {
+    const actions = c.status === 'pending' ? `
+        <div style="display:flex;gap:8px;margin-top:10px;">
+            <button onclick="window.adminResolve('coaching_requests','${c.id}','confirmed')" style="flex:1;background:#10b981;color:white;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.82rem;"><i class="fas fa-check"></i> Konfime Randevou</button>
+            <a href="https://wa.me/${(c.phone||'').replace(/\\D/g,'')}" target="_blank" style="background:#22c55e;color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.82rem;text-decoration:none;"><i class="fab fa-whatsapp"></i></a>
+            <button onclick="window.adminReject('coaching_requests','${c.id}')" style="background:#ef4444;color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.82rem;"><i class="fas fa-times"></i></button>
+        </div>` : '';
+    return _adminCard(`
+        <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
+            <div style="flex:1;">
+                <strong style="color:#1f2937;">${c.userName}</strong> — <span style="background:#eef2ff;color:#4338ca;padding:2px 8px;border-radius:8px;font-size:0.75rem;">${c.type}</span>
+                <div style="font-size:0.82rem;color:#475569;margin:5px 0;">📞 ${c.phone || 'N/A'} · 🕐 ${c.preferredDate || 'fleksib'}</div>
+                ${c.note ? `<p style="font-size:0.82rem;color:#6b7280;margin:4px 0;font-style:italic;">"${c.note}"</p>` : ''}
+                <div style="font-size:0.72rem;color:#94a3b8;">${_fmtDate(c.createdAt)}</div>
+            </div>
+            ${_statusBadge(c.status)}
+        </div>${actions}`);
+}
+
+function _renderAdminReport(r) {
+    const actions = r.status === 'open' ? `
+        <div style="display:flex;gap:8px;margin-top:10px;">
+            <button onclick="window.adminResolve('reports','${r.id}','resolved')" style="flex:1;background:#10b981;color:white;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.82rem;"><i class="fas fa-check"></i> Make Rezoud</button>
+        </div>` : '';
+    return _adminCard(`
+        <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
+            <div style="flex:1;">
+                <strong style="color:#b91c1c;">🚩 Rapò sou pòs</strong>
+                <div style="font-size:0.82rem;color:#475569;margin:5px 0;">Rezon: ${r.reason}</div>
+                <div style="font-size:0.75rem;color:#6b7280;">Pòs ID: <code style="background:#f1f5f9;padding:1px 5px;border-radius:4px;">${r.postId}</code></div>
+                <div style="font-size:0.72rem;color:#94a3b8;margin-top:2px;">Pa: ${r.reporterName} · ${_fmtDate(r.reportedAt)}</div>
+            </div>
+            ${_statusBadge(r.status)}
+        </div>${actions}`);
+}
+
+// Admin actions
+window.adminActivate = async (subId, userId, plan, months = 1) => {
+    NotificationSystem.show('N ap aktive plan an...', 'info');
+    const res = await dataManager.activateSubscription(subId, userId, plan, months);
+    NotificationSystem.show(res.message, res.success ? 'success' : 'error');
+    if (res.success) window.loadAdminTab(adminCurrentTab);
+};
+
+window.adminReject = async (coll, docId) => {
+    if (!confirm('Èske w sèten ou vle rejte sa a?')) return;
+    const res = await dataManager.adminUpdateStatus(coll, docId, 'rejected');
+    NotificationSystem.show(res.message, res.success ? 'info' : 'error');
+    if (res.success) window.loadAdminTab(adminCurrentTab);
+};
+
+window.adminMarkDelivered = async (purchaseId) => {
+    const res = await dataManager.adminUpdateStatus('purchases', purchaseId, 'delivered');
+    NotificationSystem.show(res.success ? 'Pwodwi make kòm livre!' : res.message, res.success ? 'success' : 'error');
+    if (res.success) window.loadAdminTab(adminCurrentTab);
+};
+
+window.adminResolve = async (coll, docId, status) => {
+    const res = await dataManager.adminUpdateStatus(coll, docId, status);
+    NotificationSystem.show(res.success ? 'Mizajou fèt!' : res.message, res.success ? 'success' : 'error');
+    if (res.success) window.loadAdminTab(adminCurrentTab);
+};
+
+window.adminSetPlanManual = async () => {
+    const email = document.getElementById('admin-manual-email')?.value.trim();
+    const plan = document.getElementById('admin-manual-plan')?.value;
+    if (!email) return NotificationSystem.show('Mete yon imèl.', 'warning');
+    NotificationSystem.show('N ap aplike plan an...', 'info');
+    const res = await dataManager.adminSetPlanByEmail(email, plan, plan === 'ultimate' ? 12 : 1);
+    NotificationSystem.show(res.message, res.success ? 'success' : 'error');
+    if (res.success) document.getElementById('admin-manual-email').value = '';
+};
+
+// ═══════════════════════════════════════════════════════════
+//  PREMIUM FEATURE: GUIDED MEDITATION (Pro/Ultimate)
+// ═══════════════════════════════════════════════════════════
+const MEDITATION_SESSIONS = [
+    { id: 'calm', title: '🌊 Kalm Pwofon', duration: 300, free: true, guide: ['Fèmen je w dousman...', 'Respire anndan... 1, 2, 3, 4', 'Kenbe... santi lapè a', 'Lage dousman... tout tansyon ale', 'Ou an sekirite. Ou la. Kounye a.', 'Kite chak souf pote w pi fon nan kalm'] },
+    { id: 'sleep', title: '🌙 Dòmi Trankil', duration: 600, free: false, guide: ['Kouche komftableman...', 'Relaks zòtèy ou, pye ou...', 'Relaks janm ou, vant ou...', 'Relaks zepòl ou, figi w...', 'Chak pati nan kò w vin lou ak kalm', 'Kite lespri w flote tankou yon nyaj', 'Dòmi ap vini natirèlman...'] },
+    { id: 'anxiety', title: '🍃 Kont Anksyete', duration: 420, free: false, guide: ['Mete yon men sou kè w...', 'Santi batman kè w san jije l', 'Respire pi long ke ou inspire', 'Anksyete a se yon nyaj — li ap pase', 'Ou pi gwo pase laperèz ou', 'Chak souf di: mwen an sekirite', 'Ou gen kontwòl. Ou la kounye a.'] },
+    { id: 'morning', title: '☀️ Kòmanse Jounen', duration: 300, free: false, guide: ['Souri dousman...', 'Panse a yon bagay ou rekonesan pou li', 'Respire enèji pozitif', 'Jodi a se yon nouvo paj', 'Ou gen fòs pou jounen an', 'Mete entansyon w: jodi a m ap dou ak tèt mwen'] }
+];
+
+window.openMeditation = () => {
+    const plan = dataManager.getUserPlan ? dataManager.getUserPlan() : 'free';
+    const isPremium = plan === 'pro' || plan === 'ultimate';
+
+    const list = document.getElementById('meditation-list');
+    const player = document.getElementById('meditation-player');
+    if (player) player.style.display = 'none';
+    if (list) {
+        list.style.display = 'flex';
+        list.innerHTML = MEDITATION_SESSIONS.map(s => {
+            const locked = !s.free && !isPremium;
+            return `<button onclick="${locked ? `window.promptPremiumForMeditation()` : `window.startMeditation('${s.id}')`}" style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:${locked?'#f8fafc':'white'};border:1px solid #e2e8f0;border-radius:12px;padding:14px;cursor:pointer;text-align:left;opacity:${locked?0.7:1};">
+                <span style="font-size:1rem;font-weight:600;color:var(--text-dark);">${s.title}</span>
+                <span style="font-size:0.8rem;color:#94a3b8;">${locked ? '🔒 Premium' : Math.floor(s.duration/60)+' min'}</span>
+            </button>`;
+        }).join('');
+    }
+    openModal('meditation-modal');
+};
+
+window.promptPremiumForMeditation = () => {
+    closeModal('meditation-modal');
+    NotificationSystem.show('Sesyon sa a se pou manm Premium. Abòne pou debloke tout meditasyon yo! 🧘', 'info');
+    setTimeout(() => navigateTo('premium'), 800);
+};
+
+let meditationInterval = null, meditationPhaseInterval = null;
+
+window.startMeditation = (sessionId) => {
+    const session = MEDITATION_SESSIONS.find(s => s.id === sessionId);
+    if (!session) return;
+
+    document.getElementById('meditation-list').style.display = 'none';
+    document.getElementById('meditation-player').style.display = 'block';
+    document.getElementById('meditation-subtitle').textContent = session.title;
+
+    let remaining = session.duration;
+    let phaseIdx = 0;
+    const orb = document.getElementById('meditation-orb');
+    const phaseEl = document.getElementById('meditation-phase');
+    const guideEl = document.getElementById('meditation-guide');
+    const timerEl = document.getElementById('meditation-timer');
+
+    const updateTimer = () => {
+        const m = Math.floor(remaining / 60), s = remaining % 60;
+        if (timerEl) timerEl.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+    };
+    updateTimer();
+
+    // Breathing orb animation (expand/contract every 8s)
+    let expanded = false;
+    const breathe = () => {
+        expanded = !expanded;
+        if (orb) orb.style.transform = expanded ? 'scale(1.3)' : 'scale(1)';
+        if (phaseEl) phaseEl.textContent = expanded ? 'Respire...' : 'Lage...';
+    };
+    breathe();
+    meditationPhaseInterval = setInterval(breathe, 4000);
+
+    // Guide text rotation
+    if (guideEl) guideEl.textContent = session.guide[0];
+    let guideTimer = setInterval(() => {
+        phaseIdx = (phaseIdx + 1) % session.guide.length;
+        if (guideEl) {
+            guideEl.style.opacity = '0';
+            setTimeout(() => { guideEl.textContent = session.guide[phaseIdx]; guideEl.style.opacity = '1'; }, 300);
+        }
+    }, 8000);
+
+    meditationInterval = setInterval(() => {
+        remaining--;
+        updateTimer();
+        if (remaining <= 0) {
+            window.stopMeditation();
+            NotificationSystem.show('Sesyon meditasyon konplè! Byen fèt. 🌟 +5 pwen', 'success');
+            const pts = parseInt(localStorage.getItem('zepol_points') || '0') + 5;
+            localStorage.setItem('zepol_points', pts);
+        }
+    }, 1000);
+    meditationInterval._guideTimer = guideTimer;
+};
+
+window.stopMeditation = () => {
+    if (meditationInterval) { clearInterval(meditationInterval); if (meditationInterval._guideTimer) clearInterval(meditationInterval._guideTimer); meditationInterval = null; }
+    if (meditationPhaseInterval) { clearInterval(meditationPhaseInterval); meditationPhaseInterval = null; }
+    const player = document.getElementById('meditation-player');
+    const list = document.getElementById('meditation-list');
+    if (player) player.style.display = 'none';
+    if (list) list.style.display = 'flex';
 };
 
 // --- PHQ-2 DEPRESSION SCREEN ---
