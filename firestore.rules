@@ -2,87 +2,134 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ── HELPERS ──────────────────────────────────────────────────
     function isSignedIn() { return request.auth != null; }
-    function isOwner(userId) { return request.auth.uid == userId; }
-    function isMyData() { return request.resource.data.userId == request.auth.uid; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isMyData() { return isSignedIn() && request.resource.data.userId == request.auth.uid; }
     function isAdmin() { return isSignedIn() && request.auth.token.email == 'pikatcho77@gmail.com'; }
 
-    // ── USERS ────────────────────────────────────────────────────
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // True only if the update touches ONLY the whitelisted keys.
+    function onlyChanges(keys) {
+      return incoming().diff(existing()).affectedKeys().hasOnly(keys);
+    }
+
+    // Field present and a string no longer than maxLen (or absent).
+    function strOk(field, maxLen) {
+      return !(field in incoming()) ||
+             (incoming()[field] is string && incoming()[field].size() <= maxLen);
+    }
+
+    // ── USERS (PRIVATE: email, phone, plan…) ─────────────────────
+    // Personal data is readable ONLY by the owner and the admin.
     match /users/{userId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow read:   if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
 
       match /notifications/{notifId} {
-        allow read, delete: if isSignedIn() && isOwner(userId);
-        allow create, update: if isSignedIn(); // others can send notifs
+        allow read, update, delete: if isOwner(userId);
+        allow create: if isSignedIn(); // others may send notifications
       }
 
       match /blocked_users/{blockedId} {
-        allow read, write: if isSignedIn() && isOwner(userId);
+        allow read, write: if isOwner(userId);
       }
 
       match /bookmarks/{bookmarkId} {
-        allow read, write: if isSignedIn() && isOwner(userId);
+        allow read, write: if isOwner(userId);
       }
 
       match /mood_logs/{logId} {
-        allow read, write: if isSignedIn() && isOwner(userId);
+        allow read, write: if isOwner(userId);
       }
 
       match /{allSubcollections=**} {
-        allow read, write: if isSignedIn() && isOwner(userId);
+        allow read, write: if isOwner(userId);
       }
+    }
+
+    // ── PUBLIC PROFILES (non-sensitive: name, photo) ─────────────
+    // Mirror of safe display fields so social features work without
+    // exposing email/phone. Owner writes their own; anyone can read.
+    match /public_profiles/{userId} {
+      allow read: if true;
+      allow create, update: if isOwner(userId)
+        && incoming().keys().hasOnly(['name', 'photoURL', 'username', 'uid', 'updatedAt'])
+        && strOk('name', 80)
+        && strOk('username', 60);
+      allow delete: if isOwner(userId) || isAdmin();
     }
 
     // ── PUBLIC POSTS ─────────────────────────────────────────────
     match /posts/{postId} {
       allow read: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn(); // likes, reactions, comments
+      allow create: if isSignedIn()
+        && incoming().creatorUid == request.auth.uid
+        && strOk('text', 5000);
+      // Owner edits freely; others may ONLY add likes/comments.
+      allow update: if isSignedIn() && (
+        existing().creatorUid == request.auth.uid ||
+        onlyChanges(['likes', 'comments'])
+      );
       allow delete: if isSignedIn() && (
-        resource.data.authorId == request.auth.uid ||
-        resource.data.userId  == request.auth.uid
+        existing().creatorUid == request.auth.uid ||
+        (('authorId' in existing()) && existing().authorId == request.auth.uid) ||
+        (('userId'   in existing()) && existing().userId   == request.auth.uid) ||
+        isAdmin()
       );
     }
 
     // ── SUCCESS STORIES ──────────────────────────────────────────
     match /success_stories/{storyId} {
       allow read: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
+      allow create: if isSignedIn() && strOk('text', 5000);
+      // Author edits freely; others may ONLY react/comment.
+      allow update: if isSignedIn() && (
+        (('authorId' in existing()) && existing().authorId == request.auth.uid) ||
+        onlyChanges(['likes', 'reactions', 'comments'])
+      );
+      allow delete: if isSignedIn() && (
+        (('authorId' in existing()) && existing().authorId == request.auth.uid) || isAdmin()
+      );
     }
 
     // ── CONFESSIONS ANONYMES ─────────────────────────────────────
     match /confessions/{confId} {
       allow read: if true;
-      allow create: if isSignedIn();
-      // No update/delete — confessions are immutable
+      allow create: if isSignedIn() && strOk('text', 5000);
+      // No update/delete — confessions are immutable.
+      allow delete: if isAdmin();
     }
 
-    // ── SUPPORT CHAT ─────────────────────────────────────────────
+    // ── SUPPORT CHAT (mental-health: signed-in only) ─────────────
     match /support_chat/{messageId} {
-      allow read: if true;
-      allow create: if isSignedIn();
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && strOk('text', 3000);
+      allow delete: if isAdmin();
     }
 
     // ── SUPPORT JAR ──────────────────────────────────────────────
     match /support_jar/{noteId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn();
+      allow create: if isSignedIn() && strOk('text', 3000);
+      allow delete: if isAdmin();
     }
 
     // ── GRATITUDE JAR ────────────────────────────────────────────
     match /gratitude/{noteId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && isMyData();
+      allow create: if isMyData() && strOk('text', 3000);
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
     // ── ONLINE USERS ─────────────────────────────────────────────
     match /online_users/{userId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && isOwner(userId);
+      allow write: if isOwner(userId);
     }
 
     // ── DIRECT MESSAGES ──────────────────────────────────────────
@@ -91,7 +138,9 @@ service cloud.firestore {
         resource.data.senderId    == request.auth.uid ||
         resource.data.recipientId == request.auth.uid
       );
-      allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
+      allow create: if isSignedIn()
+        && incoming().senderId == request.auth.uid
+        && strOk('text', 5000);
       allow update: if isSignedIn() && resource.data.recipientId == request.auth.uid; // mark read
       allow delete: if isSignedIn() && (
         resource.data.senderId    == request.auth.uid ||
@@ -103,7 +152,8 @@ service cloud.firestore {
     match /dls_lobby/{matchId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isSignedIn();
+      // Players may join/update, but cannot hijack ownership.
+      allow update: if isSignedIn() && incoming().ownerId == existing().ownerId;
       allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
     }
 
@@ -112,7 +162,7 @@ service cloud.firestore {
       allow read, write: if isSignedIn() && (
         resource == null || resource.data.userId == request.auth.uid
       );
-      allow create: if isSignedIn() && isMyData();
+      allow create: if isMyData();
     }
 
     // ── REACTIONS ────────────────────────────────────────────────
@@ -126,12 +176,12 @@ service cloud.firestore {
       allow read, write: if isSignedIn() && (
         resource == null || resource.data.userId == request.auth.uid
       );
-      allow create: if isSignedIn() && isMyData();
+      allow create: if isMyData();
     }
 
     // ── COMMUNITY RULES ACCEPTED ─────────────────────────────────
     match /community_accepted/{userId} {
-      allow read, write: if isSignedIn() && isOwner(userId);
+      allow read, write: if isOwner(userId);
     }
 
     // ── NOTIFICATIONS (top-level) ────────────────────────────────

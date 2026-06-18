@@ -169,10 +169,10 @@ function renderFriendsList() {
     list.innerHTML = filteredFriends.map(f => `
         <div class="msg-friend-item ${f.id === activeChatId ? 'active' : ''} ${f.unread ? 'unread' : ''}"
              onclick="window.switchChat('${f.id}')">
-            <div class="msg-friend-avatar">${f.avatar}</div>
+            <div class="msg-friend-avatar">${escapeHtml(f.avatar)}</div>
             <div class="msg-friend-info">
-                <div class="msg-friend-name">${f.name}</div>
-                <div class="msg-friend-preview">${f.lastMsg.substring(0, 40)}${f.lastMsg.length>40?'...':''}</div>
+                <div class="msg-friend-name">${escapeHtml(f.name)}</div>
+                <div class="msg-friend-preview">${escapeHtml(f.lastMsg.substring(0, 40))}${f.lastMsg.length>40?'...':''}</div>
             </div>
             <div class="msg-friend-meta">
                 <div class="msg-friend-time">${f.date.toLocaleDateString('ht-HT',{day:'numeric',month:'short'})}</div>
@@ -242,7 +242,7 @@ function openChat(fid) {
         box.innerHTML = `
             <div class="msg-empty-chat">
                 <div class="msg-empty-icon">👋</div>
-                <p>Kòmanse pale ak <strong>${f.name}</strong></p>
+                <p>Kòmanse pale ak <strong>${escapeHtml(f.name)}</strong></p>
             </div>`;
     } else {
         let html = '';
@@ -256,7 +256,7 @@ function openChat(fid) {
             const isMe = m.sender === 'me';
             html += `
                 <div class="msg-row ${isMe ? 'sent' : 'received'}">
-                    ${!isMe ? `<div class="msg-bubble-avatar">${f.avatar}</div>` : ''}
+                    ${!isMe ? `<div class="msg-bubble-avatar">${escapeHtml(f.avatar)}</div>` : ''}
                     <div class="msg-bubble ${isMe ? 'sent' : 'received'}">
                         <div class="msg-bubble-text">${escapeHtml(m.text)}</div>
                         <div class="msg-bubble-time">${m.time} ${isMe ? (m.read ? '✓✓' : '✓') : ''}</div>
@@ -372,10 +372,10 @@ window.initiateNewChat = async () => {
 
     if (found) {
         results.innerHTML = `
-            <div class="msg-friend-item" onclick="window.startChatWith('${found.id}','${(found.name||'').replace(/'/g,"\\'")}')" style="padding:12px;cursor:pointer;">
-                <div class="msg-friend-avatar">${(found.name||'?').charAt(0).toUpperCase()}</div>
+            <div class="msg-friend-item" onclick="window.startChatWith('${(found.id||'').replace(/['"<>`\\]/g,'')}','${(found.name||'').replace(/['"<>`\\]/g,'')}')" style="padding:12px;cursor:pointer;">
+                <div class="msg-friend-avatar">${escapeHtml((found.name||'?').charAt(0).toUpperCase())}</div>
                 <div class="msg-friend-info">
-                    <div class="msg-friend-name">${found.name}</div>
+                    <div class="msg-friend-name">${escapeHtml(found.name)}</div>
                     <div class="msg-friend-preview">Klike pou kòmanse pale</div>
                 </div>
             </div>`;

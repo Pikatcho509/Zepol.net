@@ -8,6 +8,17 @@ import { AIService } from './modules/ai-service.js?v=18.0.43-MOOD-ENHANCED'; // 
 import { renderLibraryUI } from './modules/library.js';
 import { renderMessagingUI } from './modules/messaging.js';
 
+// --- SECURITY: escape user content before inserting into innerHTML (anti-XSS) ---
+function escapeHtml(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, c => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+}
+// For values placed inside inline onclick="..." JS string arguments.
+function safeArg(v) {
+    return String(v == null ? '' : v).replace(/['"<>`\\]/g, '');
+}
+
 let dataManager;
 window.currentUserId = null;
 window.currentUserName = null;
@@ -1825,8 +1836,8 @@ function renderCommunityOnlineList(users) {
 
     list.innerHTML = users.map(u => `
         <div class="online-user-item">
-            <div class="online-avatar">${u.name[0]}</div>
-            <span>${u.name}</span>
+            <div class="online-avatar">${escapeHtml((u.name || '?')[0])}</div>
+            <span>${escapeHtml(u.name)}</span>
             <div class="online-status-dot"></div>
         </div>
     `).join('');
@@ -1903,9 +1914,9 @@ window.renderDLSCodes = () => {
             dlsOnlineList.innerHTML = otherUsers.map(u => `
                 <div class="dls-player-card" style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); color: var(--text-primary); padding: 10px; border-radius: 12px; text-align: center;">
                     <div style="font-size: 1.5rem;">⚽</div>
-                    <div style="font-weight: bold; font-size: 0.9rem;">${u.name}</div>
+                    <div style="font-weight: bold; font-size: 0.9rem;">${escapeHtml(u.name)}</div>
                     <div style="font-size: 0.75rem; color: #10b981; margin-bottom: 8px;">Online</div>
-                    <button onclick="window.challengePlayerDLS('${u.uid}', '${u.name}')" style="background: #10b981; color: white; border: none; padding: 4px 10px; border-radius: 15px; font-size: 0.75rem; cursor: pointer; display: inline-block; width: 100%;">
+                    <button onclick="window.challengePlayerDLS('${safeArg(u.uid)}', '${safeArg(u.name)}')" style="background: #10b981; color: white; border: none; padding: 4px 10px; border-radius: 15px; font-size: 0.75rem; cursor: pointer; display: inline-block; width: 100%;">
                         <i class="fas fa-gamepad"></i> Defye l
                     </button>
                 </div>
@@ -2039,10 +2050,10 @@ function renderNotifications() {
     }
     list.innerHTML = window.currentNotifications.map(n => `
         <div class="notif-item ${n.read ? '' : 'unread'}" style="display: flex; justify-content: space-between; align-items: center; position: relative;">
-            <div style="flex: 1; cursor: pointer; display: flex; flex-direction: column; gap: 4px;" onclick="handleNotifClick('${n.id}', '${n.postId}')">
+            <div style="flex: 1; cursor: pointer; display: flex; flex-direction: column; gap: 4px;" onclick="handleNotifClick('${safeArg(n.id)}', '${safeArg(n.postId)}')">
                 <div style="display: flex; gap: 10px; align-items: center;">
                     <i class="fas ${n.type === 'like' ? 'fa-heart' : 'fa-comment'}"></i>
-                    <span><strong>${n.senderName}</strong> ${n.message}</span>
+                    <span><strong>${escapeHtml(n.senderName)}</strong> ${escapeHtml(n.message)}</span>
                 </div>
                 <div style="font-size: 11px; color: grey; margin-left: 26px;">${formatDateTime(n.date)}</div>
             </div>
@@ -2135,12 +2146,12 @@ function renderInbox(messages) {
             <div class="msg-avatar">${m.senderName[0]}</div>
             <div class="msg-content-mini" style="flex: 1;">
                 <div class="msg-header">
-                    <span class="msg-sender">${m.senderName}</span>
+                    <span class="msg-sender">${escapeHtml(m.senderName)}</span>
                     <span class="msg-time">${formatDateTime(m.date)}</span>
                 </div>
-                <div class="msg-text-preview" style="margin-bottom: 8px;">${m.text}</div>
+                <div class="msg-text-preview" style="margin-bottom: 8px;">${escapeHtml(m.text)}</div>
                 <div class="msg-actions" style="display: flex; gap: 8px; font-size: 12px;">
-                    <button onclick="window.replyMessage('${m.senderId}', '${m.senderName.replace(/'/g, "\\'")}')" style="background: none; border: 1px solid var(--primary); color: var(--primary); border-radius: 12px; padding: 3px 8px; cursor: pointer;"><i class="fas fa-reply"></i> Reponn</button>
+                    <button onclick="window.replyMessage('${safeArg(m.senderId)}', '${safeArg(m.senderName)}')" style="background: none; border: 1px solid var(--primary); color: var(--primary); border-radius: 12px; padding: 3px 8px; cursor: pointer;"><i class="fas fa-reply"></i> Reponn</button>
                     <button onclick="window.deleteInboxMessage('${m.id}')" style="background: none; border: 1px solid var(--danger); color: var(--danger); border-radius: 12px; padding: 3px 8px; cursor: pointer;"><i class="fas fa-trash"></i> Efase</button>
                     <button onclick="window.blockUser('${m.senderId}')" style="background: none; border: 1px solid #718096; color: #718096; border-radius: 12px; padding: 3px 8px; cursor: pointer;"><i class="fas fa-ban"></i> Bloke</button>
                 </div>
@@ -2313,9 +2324,9 @@ window.handleComment = (postId) => {
             cdiv.className = 'comment-item';
             cdiv.style = "padding: 10px; border-bottom: 1px solid #eee; display:flex; justify-content:space-between; align-items:center;";
             cdiv.innerHTML = `
-                <div><strong>${c.author}:</strong> ${c.text}</div>
+                <div><strong>${escapeHtml(c.author)}:</strong> ${escapeHtml(c.text)}</div>
                 ${(c.authorId && c.authorId !== user.uid) ? `
-                <button class="action-btn" onclick="closeModal('comment-modal'); window.openMessageTo('${c.authorId}', '${c.author}')">
+                <button class="action-btn" onclick="closeModal('comment-modal'); window.openMessageTo('${safeArg(c.authorId)}', '${safeArg(c.author)}')">
                     <i class="fas fa-reply"></i> Prive
                 </button>` : ''}
             `;
@@ -2575,9 +2586,9 @@ window.submitConfession = async () => {
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
                 <div style="width:36px;height:36px;background:#8b5cf6;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:16px;">🎭</div>
                 <div><strong style="color:#5b21b6;">Anonim</strong><br><span style="font-size:0.78rem;color:#94a3b8;">jis kounye a</span></div>
-                <span style="margin-left:auto;background:#f5f3ff;color:#7c3aed;padding:3px 10px;border-radius:12px;font-size:0.78rem;">${cat}</span>
+                <span style="margin-left:auto;background:#f5f3ff;color:#7c3aed;padding:3px 10px;border-radius:12px;font-size:0.78rem;">${escapeHtml(cat)}</span>
             </div>
-            <p style="color:#374151;margin:0;line-height:1.6;">${text}</p>
+            <p style="color:#374151;margin:0;line-height:1.6;">${escapeHtml(text)}</p>
         `;
         feed.prepend(div);
     }
@@ -2946,10 +2957,10 @@ window.loadMemberSupportProfiles = () => {
         return `
             <div style="background:white;border:1px solid #e2e8f0;border-radius:15px;padding:20px;${p.completed?'opacity:0.7;':''}">
                 <div style="display:flex;gap:12px;align-items:start;margin-bottom:12px;">
-                    <div style="width:42px;height:42px;background:var(--primary);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:16px;flex-shrink:0;">${p.name[0]}</div>
-                    <div><strong style="color:#1f2937;">${p.name}</strong><br><span style="font-size:0.82rem;color:#6b7280;">${p.goal}</span></div>
+                    <div style="width:42px;height:42px;background:var(--primary);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:16px;flex-shrink:0;">${escapeHtml((p.name||'?')[0])}</div>
+                    <div><strong style="color:#1f2937;">${escapeHtml(p.name)}</strong><br><span style="font-size:0.82rem;color:#6b7280;">${escapeHtml(p.goal)}</span></div>
                 </div>
-                <p style="font-size:0.85rem;color:#6b7280;font-style:italic;margin-bottom:12px;">"${p.story}"</p>
+                <p style="font-size:0.85rem;color:#6b7280;font-style:italic;margin-bottom:12px;">"${escapeHtml(p.story)}"</p>
                 <div style="background:#f1f5f9;border-radius:10px;height:8px;margin-bottom:6px;">
                     <div style="background:${pct>=100?'#10b981':'var(--primary)'};height:100%;border-radius:10px;width:${pct}%;transition:width 0.5s;"></div>
                 </div>
@@ -2958,7 +2969,7 @@ window.loadMemberSupportProfiles = () => {
                 </div>
                 ${p.completed ? '<div style="text-align:center;background:#f0fdf4;color:#15803d;padding:8px;border-radius:10px;font-weight:600;">✓ Objektif atenn! Mèsi.</div>' :
                 `<button onclick="window.showPaymentMethod('moncash')" style="background:var(--primary);color:white;border:none;padding:10px;border-radius:10px;width:100%;font-weight:600;cursor:pointer;">
-                    <i class="fas fa-hand-holding-heart"></i> Ede ${p.name.split(' ')[0]}
+                    <i class="fas fa-hand-holding-heart"></i> Ede ${escapeHtml((p.name||'').split(' ')[0])}
                 </button>`}
             </div>
         `;
@@ -3382,17 +3393,17 @@ function _renderAdminSubscription(s) {
     const amount = s.plan === 'ultimate' ? '$15' : '$5';
     const actions = s.status === 'pending' ? `
         <div style="display:flex;gap:8px;margin-top:10px;">
-            <button onclick="window.adminActivate('${s.id}','${s.userId}','${s.plan}')" style="flex:1;background:#10b981;color:white;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.82rem;"><i class="fas fa-check"></i> Valide (1 mwa)</button>
-            <button onclick="window.adminActivate('${s.id}','${s.userId}','${s.plan}',12)" style="flex:1;background:#059669;color:white;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.82rem;">Valide (1 an)</button>
-            <button onclick="window.adminReject('subscriptions','${s.id}')" style="background:#ef4444;color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.82rem;"><i class="fas fa-times"></i></button>
+            <button onclick="window.adminActivate('${safeArg(s.id)}','${safeArg(s.userId)}','${safeArg(s.plan)}')" style="flex:1;background:#10b981;color:white;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.82rem;"><i class="fas fa-check"></i> Valide (1 mwa)</button>
+            <button onclick="window.adminActivate('${safeArg(s.id)}','${safeArg(s.userId)}','${safeArg(s.plan)}',12)" style="flex:1;background:#059669;color:white;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.82rem;">Valide (1 an)</button>
+            <button onclick="window.adminReject('subscriptions','${safeArg(s.id)}')" style="background:#ef4444;color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.82rem;"><i class="fas fa-times"></i></button>
         </div>` : '';
     return _adminCard(`
         <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
             <div>
-                <strong style="color:#1f2937;">${s.userName || 'Itilizatè'}</strong>
-                <span style="background:#faf5ff;color:#7e22ce;padding:2px 8px;border-radius:8px;font-size:0.72rem;margin-left:6px;">${s.plan?.toUpperCase()} ${amount}/mwa</span>
-                <div style="font-size:0.8rem;color:#6b7280;margin-top:4px;">📱 ${s.paymentMethod || '?'} · Ref: <code style="background:#f1f5f9;padding:1px 5px;border-radius:4px;">${s.txRef || 'N/A'}</code></div>
-                <div style="font-size:0.72rem;color:#94a3b8;margin-top:2px;">${_fmtDate(s.requestedAt)} · ${s.userEmail || ''}</div>
+                <strong style="color:#1f2937;">${escapeHtml(s.userName || 'Itilizatè')}</strong>
+                <span style="background:#faf5ff;color:#7e22ce;padding:2px 8px;border-radius:8px;font-size:0.72rem;margin-left:6px;">${escapeHtml(s.plan?.toUpperCase())} ${amount}/mwa</span>
+                <div style="font-size:0.8rem;color:#6b7280;margin-top:4px;">📱 ${escapeHtml(s.paymentMethod || '?')} · Ref: <code style="background:#f1f5f9;padding:1px 5px;border-radius:4px;">${escapeHtml(s.txRef || 'N/A')}</code></div>
+                <div style="font-size:0.72rem;color:#94a3b8;margin-top:2px;">${_fmtDate(s.requestedAt)} · ${escapeHtml(s.userEmail || '')}</div>
             </div>
             ${_statusBadge(s.status)}
         </div>${actions}`);
@@ -3401,14 +3412,14 @@ function _renderAdminSubscription(s) {
 function _renderAdminPurchase(p) {
     const actions = p.status === 'pending' ? `
         <div style="display:flex;gap:8px;margin-top:10px;">
-            <button onclick="window.adminMarkDelivered('${p.id}','${p.userId}','${p.productId}')" style="flex:1;background:#3b82f6;color:white;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.82rem;"><i class="fas fa-paper-plane"></i> Make Livre & Debloke</button>
-            <button onclick="window.adminReject('purchases','${p.id}')" style="background:#ef4444;color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.82rem;"><i class="fas fa-times"></i></button>
+            <button onclick="window.adminMarkDelivered('${safeArg(p.id)}','${safeArg(p.userId)}','${safeArg(p.productId)}')" style="flex:1;background:#3b82f6;color:white;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.82rem;"><i class="fas fa-paper-plane"></i> Make Livre & Debloke</button>
+            <button onclick="window.adminReject('purchases','${safeArg(p.id)}')" style="background:#ef4444;color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.82rem;"><i class="fas fa-times"></i></button>
         </div>` : '';
     return _adminCard(`
         <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
             <div>
-                <strong style="color:#1f2937;">${p.productName}</strong> <span style="color:var(--primary);font-weight:700;">${p.price}</span>
-                <div style="font-size:0.8rem;color:#6b7280;margin-top:4px;">${p.userName} · 📱 ${p.paymentMethod} · Ref: <code style="background:#f1f5f9;padding:1px 5px;border-radius:4px;">${p.txRef || 'N/A'}</code></div>
+                <strong style="color:#1f2937;">${escapeHtml(p.productName)}</strong> <span style="color:var(--primary);font-weight:700;">${escapeHtml(p.price)}</span>
+                <div style="font-size:0.8rem;color:#6b7280;margin-top:4px;">${escapeHtml(p.userName)} · 📱 ${escapeHtml(p.paymentMethod)} · Ref: <code style="background:#f1f5f9;padding:1px 5px;border-radius:4px;">${escapeHtml(p.txRef || 'N/A')}</code></div>
                 <div style="font-size:0.72rem;color:#94a3b8;margin-top:2px;">${_fmtDate(p.purchasedAt)}</div>
             </div>
             ${_statusBadge(p.status)}
@@ -3418,15 +3429,15 @@ function _renderAdminPurchase(p) {
 function _renderAdminSupport(s) {
     const actions = s.status === 'pending' ? `
         <div style="display:flex;gap:8px;margin-top:10px;">
-            <button onclick="window.adminResolve('support_requests','${s.id}','approved')" style="flex:1;background:#10b981;color:white;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.82rem;"><i class="fas fa-check"></i> Apwouve & Pibliye</button>
-            <button onclick="window.adminReject('support_requests','${s.id}')" style="background:#ef4444;color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.82rem;"><i class="fas fa-times"></i></button>
+            <button onclick="window.adminResolve('support_requests','${safeArg(s.id)}','approved')" style="flex:1;background:#10b981;color:white;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.82rem;"><i class="fas fa-check"></i> Apwouve & Pibliye</button>
+            <button onclick="window.adminReject('support_requests','${safeArg(s.id)}')" style="background:#ef4444;color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.82rem;"><i class="fas fa-times"></i></button>
         </div>` : '';
     return _adminCard(`
         <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
             <div style="flex:1;">
-                <strong style="color:#1f2937;">${s.userName}</strong> — ${s.goal} ${s.amount ? `<span style="color:var(--secondary);font-weight:700;">($${s.amount})</span>` : ''}
-                <p style="font-size:0.85rem;color:#475569;margin:6px 0;font-style:italic;">"${s.story}"</p>
-                <div style="font-size:0.72rem;color:#94a3b8;">${_fmtDate(s.createdAt)} · ${s.contact || ''}</div>
+                <strong style="color:#1f2937;">${escapeHtml(s.userName)}</strong> — ${escapeHtml(s.goal)} ${s.amount ? `<span style="color:var(--secondary);font-weight:700;">($${escapeHtml(s.amount)})</span>` : ''}
+                <p style="font-size:0.85rem;color:#475569;margin:6px 0;font-style:italic;">"${escapeHtml(s.story)}"</p>
+                <div style="font-size:0.72rem;color:#94a3b8;">${_fmtDate(s.createdAt)} · ${escapeHtml(s.contact || '')}</div>
             </div>
             ${_statusBadge(s.status)}
         </div>${actions}`);
@@ -3435,16 +3446,16 @@ function _renderAdminSupport(s) {
 function _renderAdminCoaching(c) {
     const actions = c.status === 'pending' ? `
         <div style="display:flex;gap:8px;margin-top:10px;">
-            <button onclick="window.adminResolve('coaching_requests','${c.id}','confirmed')" style="flex:1;background:#10b981;color:white;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.82rem;"><i class="fas fa-check"></i> Konfime Randevou</button>
+            <button onclick="window.adminResolve('coaching_requests','${safeArg(c.id)}','confirmed')" style="flex:1;background:#10b981;color:white;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.82rem;"><i class="fas fa-check"></i> Konfime Randevou</button>
             <a href="https://wa.me/${(c.phone||'').replace(/\\D/g,'')}" target="_blank" style="background:#22c55e;color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.82rem;text-decoration:none;"><i class="fab fa-whatsapp"></i></a>
-            <button onclick="window.adminReject('coaching_requests','${c.id}')" style="background:#ef4444;color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.82rem;"><i class="fas fa-times"></i></button>
+            <button onclick="window.adminReject('coaching_requests','${safeArg(c.id)}')" style="background:#ef4444;color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.82rem;"><i class="fas fa-times"></i></button>
         </div>` : '';
     return _adminCard(`
         <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
             <div style="flex:1;">
-                <strong style="color:#1f2937;">${c.userName}</strong> — <span style="background:#eef2ff;color:#4338ca;padding:2px 8px;border-radius:8px;font-size:0.75rem;">${c.type}</span>
-                <div style="font-size:0.82rem;color:#475569;margin:5px 0;">📞 ${c.phone || 'N/A'} · 🕐 ${c.preferredDate || 'fleksib'}</div>
-                ${c.note ? `<p style="font-size:0.82rem;color:#6b7280;margin:4px 0;font-style:italic;">"${c.note}"</p>` : ''}
+                <strong style="color:#1f2937;">${escapeHtml(c.userName)}</strong> — <span style="background:#eef2ff;color:#4338ca;padding:2px 8px;border-radius:8px;font-size:0.75rem;">${escapeHtml(c.type)}</span>
+                <div style="font-size:0.82rem;color:#475569;margin:5px 0;">📞 ${escapeHtml(c.phone || 'N/A')} · 🕐 ${escapeHtml(c.preferredDate || 'fleksib')}</div>
+                ${c.note ? `<p style="font-size:0.82rem;color:#6b7280;margin:4px 0;font-style:italic;">"${escapeHtml(c.note)}"</p>` : ''}
                 <div style="font-size:0.72rem;color:#94a3b8;">${_fmtDate(c.createdAt)}</div>
             </div>
             ${_statusBadge(c.status)}
@@ -3454,15 +3465,15 @@ function _renderAdminCoaching(c) {
 function _renderAdminReport(r) {
     const actions = r.status === 'open' ? `
         <div style="display:flex;gap:8px;margin-top:10px;">
-            <button onclick="window.adminResolve('reports','${r.id}','resolved')" style="flex:1;background:#10b981;color:white;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.82rem;"><i class="fas fa-check"></i> Make Rezoud</button>
+            <button onclick="window.adminResolve('reports','${safeArg(r.id)}','resolved')" style="flex:1;background:#10b981;color:white;border:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.82rem;"><i class="fas fa-check"></i> Make Rezoud</button>
         </div>` : '';
     return _adminCard(`
         <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
             <div style="flex:1;">
                 <strong style="color:#b91c1c;">🚩 Rapò sou pòs</strong>
-                <div style="font-size:0.82rem;color:#475569;margin:5px 0;">Rezon: ${r.reason}</div>
-                <div style="font-size:0.75rem;color:#6b7280;">Pòs ID: <code style="background:#f1f5f9;padding:1px 5px;border-radius:4px;">${r.postId}</code></div>
-                <div style="font-size:0.72rem;color:#94a3b8;margin-top:2px;">Pa: ${r.reporterName} · ${_fmtDate(r.reportedAt)}</div>
+                <div style="font-size:0.82rem;color:#475569;margin:5px 0;">Rezon: ${escapeHtml(r.reason)}</div>
+                <div style="font-size:0.75rem;color:#6b7280;">Pòs ID: <code style="background:#f1f5f9;padding:1px 5px;border-radius:4px;">${escapeHtml(r.postId)}</code></div>
+                <div style="font-size:0.72rem;color:#94a3b8;margin-top:2px;">Pa: ${escapeHtml(r.reporterName)} · ${_fmtDate(r.reportedAt)}</div>
             </div>
             ${_statusBadge(r.status)}
         </div>${actions}`);

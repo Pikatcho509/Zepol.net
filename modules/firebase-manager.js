@@ -37,6 +37,12 @@ export class FirebaseManager {
                             premiumUntil: userData.premiumUntil || null,
                             purchases: userData.purchases || []
                         };
+                        // Backfill / refresh the public profile mirror on every login.
+                        this.syncPublicProfile({
+                            uid: user.uid,
+                            name: this.currentUser.name,
+                            photoURL: user.photoURL
+                        });
                     } catch (e) {
                         console.error("Error fetching user data:", e);
                         this.currentUser = {
@@ -145,6 +151,10 @@ export class FirebaseManager {
                 isMember: false, // Default to non-member
                 createdAt: new Date().toISOString()
             });
+            await this.syncPublicProfile({
+                uid: userCredential.user.uid,
+                name: userData.fullName || userData.username
+            });
             return { success: true };
         } catch (error) {
             console.error("Registration Error:", error);
@@ -180,6 +190,11 @@ export class FirebaseManager {
                     provider: 'google'
                 });
             }
+            await this.syncPublicProfile({
+                uid: user.uid,
+                name: user.displayName,
+                photoURL: user.photoURL
+            });
             return { success: true, user };
         } catch (error) {
             console.error("Google Sign-In Error:", error);
@@ -849,9 +864,28 @@ export class FirebaseManager {
         }
     }
 
+    // Keep a PUBLIC, non-sensitive mirror of the profile so social
+    // features (chat search, names, avatars) keep working WITHOUT
+    // exposing email/phone stored in the private `users` doc.
+    async syncPublicProfile({ uid, name, photoURL } = {}) {
+        try {
+            uid = uid || this.currentUser?.uid;
+            if (!uid) return;
+            await setDoc(doc(db, "public_profiles", uid), {
+                uid: uid,
+                name: name || this.currentUser?.name || 'Manm Zepòl',
+                photoURL: photoURL || null,
+                updatedAt: new Date().toISOString()
+            }, { merge: true });
+        } catch (e) {
+            console.warn("syncPublicProfile skipped:", e?.message);
+        }
+    }
+
     async getUserProfile(uid) {
         try {
-            const docRef = doc(db, "users", uid);
+            // Read the public mirror — NOT the private users doc.
+            const docRef = doc(db, "public_profiles", uid);
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
                 return docSnap.data();

@@ -1,4 +1,18 @@
 console.log("🎨 UI.js Loaded V3.5.9-Debug");
+
+// --- SECURITY: escape user content before inserting into innerHTML ---
+// Prevents stored XSS (e.g. a post/comment containing <img onerror=...>).
+function escapeHtml(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, c => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+}
+// For values placed inside inline onclick="..." JS string arguments:
+// strip characters that could break out of the quote/HTML context.
+function safeArg(v) {
+    return String(v == null ? '' : v).replace(/['"<>`\\]/g, '');
+}
+
 // --- Système de Notifications ---
 export class NotificationSystem {
     static init() {
@@ -61,7 +75,7 @@ export function renderChat(msgs) {
     msgs.forEach(m => {
         const div = document.createElement('div');
         div.className = 'sg-message';
-        div.innerHTML = `<span class="chat-author">${m.author}</span>: <p>${m.text}</p>`;
+        div.innerHTML = `<span class="chat-author">${escapeHtml(m.author)}</span>: <p>${escapeHtml(m.text)}</p>`;
         feed.appendChild(div);
     });
     feed.scrollTop = feed.scrollHeight;
@@ -83,7 +97,7 @@ export function renderStories(stories) {
     stories.forEach(s => {
         const div = document.createElement('div');
         div.className = 'card story-card glass-card';
-        div.innerHTML = `<h4>${s.title}</h4><p>"${s.content}"</p><span class="story-author">- ${s.author}</span>`;
+        div.innerHTML = `<h4>${escapeHtml(s.title)}</h4><p>"${escapeHtml(s.content)}"</p><span class="story-author">- ${escapeHtml(s.author)}</span>`;
         container.appendChild(div);
     });
 }
@@ -138,14 +152,14 @@ export function renderPosts(posts, containerId = 'posts-feed') {
                         ${previewComments.map((c, idx) => `
                             <div class="comment-bubble" style="display: flex; gap: 10px; align-items: start;">
                                 <div class="comment-avatar" style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px; flex-shrink: 0;">
-                                    ${(c.author || 'A')[0].toUpperCase()}
+                                    ${escapeHtml((c.author || 'A')[0].toUpperCase())}
                                 </div>
                                 <div class="comment-content" style="flex: 1; background: white; padding: 10px 12px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
                                     <div class="comment-author" style="font-weight: 600; color: var(--primary-dark); font-size: 13px; margin-bottom: 4px;">
-                                        ${c.author || 'Anonim'}
+                                        ${escapeHtml(c.author || 'Anonim')}
                                     </div>
                                     <div class="comment-text" style="color: #4a5568; font-size: 14px; line-height: 1.5;">
-                                        ${c.text}
+                                        ${escapeHtml(c.text)}
                                     </div>
                                     <div class="comment-actions" style="margin-top: 6px; display: flex; gap: 12px; align-items: center;">
                                         <button class="comment-like-btn" onclick="window.likeComment('${post.id}', ${idx})" style="background: none; border: none; color: #94a3b8; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 4px; padding: 0;">
@@ -200,20 +214,20 @@ export function renderPosts(posts, containerId = 'posts-feed') {
         div.innerHTML = `
             <div class="tweet-layout" style="display: flex; gap: 12px; padding: 15px;">
                 <div class="tweet-avatar" style="width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 20px; flex-shrink: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-                    ${(author || 'A')[0].toUpperCase()}
+                    ${escapeHtml((author || 'A')[0].toUpperCase())}
                 </div>
                 <div class="tweet-content-area" style="flex: 1; min-width: 0;">
                     <div class="tweet-header" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 4px;">
-                        <span class="tweet-author" style="font-weight: 700; color: var(--text-dark); font-size: 15px;">${author}</span>
-                        <span class="tweet-handle" style="color: var(--text-muted); font-size: 14px;">@${authorHandle}</span>
+                        <span class="tweet-author" style="font-weight: 700; color: var(--text-dark); font-size: 15px;">${escapeHtml(author)}</span>
+                        <span class="tweet-handle" style="color: var(--text-muted); font-size: 14px;">@${escapeHtml(authorHandle)}</span>
                         ${canSendPrivateMessage ? `<span style="background: #eef2ff; color: #4338ca; font-size: 12px; padding: 2px 8px; border-radius: 999px;">Mesaj prive</span>` : ''}
                         <span class="tweet-dot" style="color: var(--text-muted);">&middot;</span>
                         <span class="tweet-date" style="color: var(--text-muted); font-size: 14px;">${displayDate}</span>
                     </div>
                     
-                    ${post.title ? `<div style="font-weight: 700; color: var(--text-dark); font-size: 16px; margin-bottom: 10px;">${post.title}</div>` : ''}
+                    ${post.title ? `<div style="font-weight: 700; color: var(--text-dark); font-size: 16px; margin-bottom: 10px;">${escapeHtml(post.title)}</div>` : ''}
                     <div class="tweet-text" style="color: var(--text-main); font-size: 15px; line-height: 1.5; margin-bottom: 12px; word-wrap: break-word;">
-                        ${content}
+                        ${escapeHtml(content)}
                     </div>
                     
                     <div class="tweet-actions" style="display: flex; justify-content: space-between; max-width: 400px; margin-top: 10px; color: #536471;">
@@ -227,7 +241,7 @@ export function renderPosts(posts, containerId = 'posts-feed') {
                             <i class="fas fa-retweet" style="transition: transform 0.2s;"></i>
                         </button>
                         ${postAuthorId !== 'guest' && postAuthorId !== (window.currentUserId || 'guest') ? `
-                        <button class="tweet-btn" onclick="window.openMessageTo('${postAuthorId}', '${author}')" style="background:none; border:none; color:inherit; cursor:pointer; display:flex; align-items:center; gap:8px; font-size:14px; transition: color 0.2s;">
+                        <button class="tweet-btn" onclick="window.openMessageTo('${safeArg(postAuthorId)}', '${safeArg(author)}')" style="background:none; border:none; color:inherit; cursor:pointer; display:flex; align-items:center; gap:8px; font-size:14px; transition: color 0.2s;">
                             <i class="far fa-envelope"></i>
                         </button>` : ''}
                         <button class="tweet-btn" onclick="window.reportPost('${post.id}')" style="background:none; border:none; color:inherit; cursor:pointer; display:flex; align-items:center; gap:8px; font-size:14px; transition: color 0.2s;" title="Siyale pòs sa a">
