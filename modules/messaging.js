@@ -300,6 +300,17 @@ window.sendDM = async () => {
     const text  = input?.value.trim();
     if (!text || !activeChatId) return;
 
+    // Safety: surface crisis resources (non-blocking) + block harassment.
+    if (window.detectDistress) window.detectDistress(text);
+    if (window.moderateContent) {
+        const m = window.moderateContent(text);
+        if (!m.ok) {
+            if (window.NotificationSystem) window.NotificationSystem.show(m.reason, 'warning');
+            else alert(m.reason);
+            return;
+        }
+    }
+
     const f   = realFriendsMap[activeChatId];
     const now = new Date();
     const tmp = {

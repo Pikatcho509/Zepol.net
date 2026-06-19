@@ -19,6 +19,10 @@ function safeArg(v) {
     return String(v == null ? '' : v).replace(/['"<>`\\]/g, '');
 }
 
+// Expose NotificationSystem globally so non-importing modules (messaging.js)
+// and inline handlers can use it.
+window.NotificationSystem = NotificationSystem;
+
 let dataManager;
 window.currentUserId = null;
 window.currentUserName = null;
@@ -294,20 +298,46 @@ window.logMood = async (mood) => {
     }
 };
 
-window.exportUserData = () => {
-    const data = {
-        user: window.dataManager.getUser(),
-        moodLogs: localStorage.getItem('zepol_mood_logs'),
-        journal: "Exported Journal Data"
-    };
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data));
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", "zepol_data.json");
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
-    NotificationSystem.show("Done ou yo telechaje.", "success");
+window.exportUserData = async () => {
+    const user = window.dataManager.getUser();
+    if (!user.loggedIn) {
+        // Guests: export only local data.
+        const data = { user, moodLogs: localStorage.getItem('zepol_mood_logs') };
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
+        const a = document.createElement('a');
+        a.setAttribute("href", dataStr);
+        a.setAttribute("download", "zepol_data.json");
+        document.body.appendChild(a); a.click(); a.remove();
+        return NotificationSystem.show("Done lokal ou yo telechaje.", "success");
+    }
+    NotificationSystem.show("N ap prepare done w yo...", "info");
+    const res = await window.dataManager.exportMyData();
+    if (res.success) NotificationSystem.show("Done w yo telechaje. 📦", "success");
+    else NotificationSystem.show(res.message || "Erè ekspòtasyon.", "warning");
+};
+
+// Resend the email-verification message.
+window.resendVerification = async () => {
+    const res = await window.dataManager.sendVerificationEmail();
+    NotificationSystem.show(res.message, res.success ? "success" : "warning");
+};
+
+// Delete account — requires explicit double confirmation.
+window.confirmDeleteAccount = async () => {
+    const user = window.dataManager.getUser();
+    if (!user.loggedIn) return NotificationSystem.show("Konekte anvan.", "warning");
+    const typed = prompt("Aksyon sa a PA KA defèt. Tout done w ap efase pou tout tan.\n\nEkri EFASE pou konfime:");
+    if (typed !== "EFASE") return NotificationSystem.show("Efasman anile.", "info");
+    NotificationSystem.show("N ap efase kont ou...", "info");
+    const res = await window.dataManager.deleteMyAccount();
+    if (res.success) {
+        NotificationSystem.show("Kont ou efase. N ap sonje w. 💙", "success");
+        setTimeout(() => window.location.reload(), 1500);
+    } else if (res.requiresReauth) {
+        NotificationSystem.show(res.message, "warning");
+    } else {
+        NotificationSystem.show(res.message || "Erè.", "warning");
+    }
 };
 
 /* --- SHARE IMAGE UPLOAD HANDLERS --- */
@@ -522,6 +552,13 @@ window.submitHomePost = async () => {
     if (window.detectDistress && window.detectDistress(text)) return;
 
     if (!text) return NotificationSystem.show("Tanpri ekri yon bagay anvan ou pataje.", "warning");
+
+    // Content moderation
+    const mod = window.moderateContent(text);
+    if (!mod.ok) return NotificationSystem.show(mod.reason, "warning");
+
+    // Require verified email for logged-in users
+    if (!window.requireVerifiedEmail()) return;
 
     const user = dataManager.getUser(); // May be guest or logged in
 
@@ -813,6 +850,10 @@ window.sendUserMessage = async () => {
     const image = window.chatImageBase64;
 
     if (!text && !image) return;
+
+    // Crisis check: surface emergency resources, but still let the
+    // empathetic assistant respond (do not block the conversation).
+    if (text && window.detectDistress) window.detectDistress(text);
 
     // Check AI limit for free users
     const limit = checkAILimit();
@@ -2344,6 +2385,11 @@ window.submitComment = async (postId) => {
     const text = input.value.trim();
     if (!text) return NotificationSystem.show("Ekri yon bagay anvan ou kòmante.", "warning");
 
+    // Safety + moderation
+    if (window.detectDistress && window.detectDistress(text)) return;
+    const modC = window.moderateContent(text);
+    if (!modC.ok) return NotificationSystem.show(modC.reason, "warning");
+
     const user = dataManager.getUser();
     if (!user.loggedIn) {
         openModal('auth-modal');
@@ -2557,6 +2603,9 @@ window.submitConfession = async () => {
     const text = input?.value.trim();
     if (!text || text.length < 10) return NotificationSystem.show('Ekri yon ti bagay anvan ou konfese.', 'warning');
     if (window.detectDistress && window.detectDistress(text)) return;
+    const modCf = window.moderateContent(text);
+    if (!modCf.ok) return NotificationSystem.show(modCf.reason, "warning");
+    if (!window.requireVerifiedEmail()) return;
 
     const confession = {
         text,
@@ -3821,18 +3870,61 @@ window.logout = async () => {
 
 
 // --- Safety & Content Features ---
+// Crisis / self-harm detection (Kreyòl + Français + English).
+const CRISIS_KEYWORDS = [
+    // Kreyòl
+    'swisid', 'touye tèt', 'touye tet', 'touye m', 'tiye tèt', 'tiye m',
+    'pa kapab ankò', 'pa kapab anko', 'pa vle viv', 'vle mouri', 'pa wè rezon viv',
+    'mwen pral mouri', 'fini ak lavi', 'finisman', 'pa gen espwa ankò',
+    'koupe tèt mwen', 'fè tèt mwen mal', 'blese tèt mwen',
+    // Français
+    'suicide', 'me tuer', 'me suicider', 'envie de mourir', 'plus envie de vivre',
+    'en finir', 'me faire du mal', 'automutilation',
+    // English
+    'kill myself', 'suicide', 'end my life', 'want to die', 'self harm',
+    'self-harm', 'hurt myself', 'no reason to live', "can't go on", 'cant go on'
+];
 window.detectDistress = (text) => {
-    const keywords = ['swisid', 'suicide', 'touye tèt', 'mouri', 'pa kapab ankò', 'finisman', 'die', 'kill myself'];
-    const lowerText = text.toLowerCase();
-    const found = keywords.some(k => lowerText.includes(k));
-
+    const lowerText = (text || '').toLowerCase();
+    const found = CRISIS_KEYWORDS.some(k => lowerText.includes(k));
     if (found) {
-        console.warn("🚨 Distress detected in text:", text);
+        console.warn("🚨 Distress detected in text.");
         openModal('sos-modal');
-        // Optional: Notify admin or save special flag in Firestore
         return true;
     }
     return false;
+};
+
+// Lightweight content moderation: block hateful / harassing content.
+// Returns { ok: true } or { ok: false, reason }.
+const BANNED_TERMS = [
+    'koksè', 'bouzen', 'kaka manman', 'madichon sou ou', 'salòp', 'salop',
+    'enbesil', 'kreten', 'fuck you', 'go die', 'kill yourself', 'kys',
+    'connard', 'salaud', 'ta gueule', 'nègre sal', 'macaque'
+];
+window.moderateContent = (text) => {
+    const t = (text || '').toLowerCase();
+    if (!t.trim()) return { ok: false, reason: "Mesaj la vid." };
+    if (t.length > 5000) return { ok: false, reason: "Mesaj la twò long (max 5000 karaktè)." };
+    const hit = BANNED_TERMS.find(w => t.includes(w));
+    if (hit) {
+        return { ok: false, reason: "Mesaj sa a gen langaj ki ka blese lòt moun. Tanpri ekri l yon lòt jan — se yon kominote sipò. 💙" };
+    }
+    // Crude spam guard: same char repeated 15+ times, or URL flood.
+    if (/(.)\1{14,}/.test(t)) return { ok: false, reason: "Mesaj la sanble spam." };
+    if ((t.match(/https?:\/\//g) || []).length > 3) return { ok: false, reason: "Twòp lyen nan mesaj la." };
+    return { ok: true };
+};
+
+// Require a verified email before broadcasting publicly (anti-spam).
+// Guests and Google-auth users pass; only unverified email/password users block.
+window.requireVerifiedEmail = () => {
+    const dm = window.dataManager;
+    if (dm && dm.getUser?.().loggedIn && dm.isEmailVerified && !dm.isEmailVerified()) {
+        NotificationSystem.show("Verifye imèl ou anvan ou poste piblikman. Ale nan Paramèt → Kont pou re-voye imèl verifikasyon an.", "warning");
+        return false;
+    }
+    return true;
 };
 
 window.seedTemplatePosts = () => {

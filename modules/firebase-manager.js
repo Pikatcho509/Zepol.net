@@ -1,4 +1,4 @@
-import { auth, db, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, doc, setDoc, getDoc, getDocs, updateDoc, collection, addDoc, query, orderBy, limit, onSnapshot, arrayUnion, increment, where, sendPasswordResetEmail, deleteDoc, GoogleAuthProvider, signInWithPopup } from '../firebase-config.js';
+import { auth, db, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, doc, setDoc, getDoc, getDocs, updateDoc, collection, addDoc, query, orderBy, limit, onSnapshot, arrayUnion, increment, where, sendPasswordResetEmail, sendEmailVerification, deleteUser, deleteDoc, GoogleAuthProvider, signInWithPopup } from '../firebase-config.js';
 import { NotificationSystem } from './ui.js?v=18.0.43-MOOD-ENHANCED';
 
 export class FirebaseManager {
@@ -155,7 +155,9 @@ export class FirebaseManager {
                 uid: userCredential.user.uid,
                 name: userData.fullName || userData.username
             });
-            return { success: true };
+            // Send email verification (best-effort; don't fail signup on error).
+            try { await sendEmailVerification(userCredential.user); } catch (e) { console.warn("verif email skipped:", e?.message); }
+            return { success: true, verificationSent: true };
         } catch (error) {
             console.error("Registration Error:", error);
             let msg = error.message;
@@ -880,6 +882,95 @@ export class FirebaseManager {
         } catch (e) {
             console.warn("syncPublicProfile skipped:", e?.message);
         }
+    }
+
+    // ── PRIVACY: export & delete personal data ───────────────────
+    // Gather everything tied to the current user into one JSON object
+    // and trigger a download (data-portability / RGPD right).
+    async exportMyData() {
+        const uid = this.currentUser?.uid;
+        if (!uid) return { success: false, message: "Konekte pou ekspòte done w." };
+        try {
+            const out = { exportedAt: new Date().toISOString(), uid };
+            const userSnap = await getDoc(doc(db, "users", uid));
+            out.profile = userSnap.exists() ? userSnap.data() : null;
+
+            const collect = async (col, field) => {
+                try {
+                    const snap = await getDocs(query(collection(db, col), where(field, "==", uid)));
+                    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                } catch { return []; }
+            };
+            out.posts = await collect("posts", "creatorUid");
+            out.purchases = await collect("purchases", "userId");
+            out.subscriptions = await collect("subscriptions", "userId");
+            out.support_requests = await collect("support_requests", "userId");
+            out.coaching_requests = await collect("coaching_requests", "userId");
+            out.sent_messages = await collect("direct_messages", "senderId");
+
+            const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `zepol-done-${uid}.json`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            return { success: true };
+        } catch (e) {
+            console.error("exportMyData error:", e);
+            return { success: false, message: "Erè pandan ekspòtasyon an." };
+        }
+    }
+
+    // Permanently delete the user's data and auth account.
+    async deleteMyAccount() {
+        const user = auth.currentUser;
+        const uid = user?.uid;
+        if (!user || !uid) return { success: false, message: "Konekte anvan." };
+        try {
+            // 1. Delete the user's own documents (rules permit owner deletes).
+            const delWhere = async (col, field) => {
+                try {
+                    const snap = await getDocs(query(collection(db, col), where(field, "==", uid)));
+                    await Promise.all(snap.docs.map(d => deleteDoc(d.ref).catch(() => {})));
+                } catch {}
+            };
+            await delWhere("posts", "creatorUid");
+            await delWhere("direct_messages", "senderId");
+            await deleteDoc(doc(db, "public_profiles", uid)).catch(() => {});
+            await deleteDoc(doc(db, "online_users", uid)).catch(() => {});
+            await deleteDoc(doc(db, "users", uid)).catch(() => {});
+
+            // 2. Delete the auth account itself.
+            await deleteUser(user);
+            return { success: true };
+        } catch (e) {
+            console.error("deleteMyAccount error:", e);
+            if (e?.code === 'auth/requires-recent-login') {
+                return { success: false, requiresReauth: true, message: "Pou sekirite, rekonekte epi eseye efase kont la ankò." };
+            }
+            return { success: false, message: "Erè pandan efasman kont la." };
+        }
+    }
+
+    // Send a verification email to the current user.
+    async sendVerificationEmail() {
+        const user = auth.currentUser;
+        if (!user) return { success: false, message: "Konekte anvan." };
+        if (user.emailVerified) return { success: false, message: "Imèl ou deja verifye." };
+        try {
+            await sendEmailVerification(user);
+            return { success: true, message: "Nou voye yon imèl verifikasyon. Tcheke bwat ou (ak spam)." };
+        } catch (e) {
+            console.error("sendVerificationEmail error:", e);
+            return { success: false, message: "Erè pandan voye imèl la. Eseye pita." };
+        }
+    }
+
+    isEmailVerified() {
+        return !!auth.currentUser?.emailVerified;
     }
 
     async getUserProfile(uid) {

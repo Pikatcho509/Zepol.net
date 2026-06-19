@@ -19,7 +19,14 @@ const MIME = {
 const server = http.createServer((req, res) => {
   let url = req.url.split('?')[0];
   if (url === '/') url = '/index.html';
-  const file = path.join(root, url);
+  // Decode + normalize, then ensure the resolved path stays inside root
+  // (prevents path-traversal like /../../etc/passwd).
+  let decoded;
+  try { decoded = decodeURIComponent(url); } catch { decoded = url; }
+  const file = path.normalize(path.join(root, decoded));
+  if (file !== root && !file.startsWith(root + path.sep)) {
+    res.writeHead(403); res.end('Forbidden'); return;
+  }
 
   fs.readFile(file, (err, data) => {
     if (err) {
