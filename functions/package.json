@@ -1,0 +1,12 @@
+{
+  "name": "zepol-functions",
+  "description": "Cloud Functions pou Zepòl — proxy AI ki pwoteje kle Gemini an",
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "private": true,
+  "dependencies": {
+    "firebase-functions": "^5.1.1"
+  }
+}

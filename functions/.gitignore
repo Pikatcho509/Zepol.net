@@ -1,0 +1,7 @@
+node_modules/
+# NEVER commit secrets / local env files
+.env
+.env.*
+.secret.local
+*.log
+.runtimeconfig.json
