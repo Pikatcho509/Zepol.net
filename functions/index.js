@@ -17,7 +17,8 @@ const { defineSecret } = require("firebase-functions/params");
 // Kle a li nan Secret Manager — pa nan kòd la.
 const GEMINI_KEY = defineSecret("GEMINI_KEY");
 
-const MODEL = "gemini-flash-latest";
+// gemini-2.5-flash konfime k ap travay ak kle a (2026-06).
+const MODEL = "gemini-2.5-flash";
 
 const SYSTEM_PROMPT = `
 Ou se "Zepòl", yon konpayon sante mantal ak yon zanmi ki gen anpati pou Ayisyen.
