@@ -14,6 +14,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Kle Gemini an PA nan git (keys.local.js gitignored). Nou kreye l isit
+      # la depi yon GitHub Secret pou li deplwaye san janm antre nan repo a.
+      - name: Kreye keys.local.js depi secret
+        run: |
+          printf 'window.GEMINI_API_KEY = "%s";\n' "${{ secrets.GEMINI_KEY }}" > keys.local.js
+
       - name: Deploy via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
@@ -27,6 +33,8 @@ jobs:
             **/.git*/**
             **/.github/**
             **/node_modules/**
+            functions/**
+            dev_tools/**
             **/*.md
             serve.ps1
             server.js
@@ -36,3 +44,4 @@ jobs:
             .firebaserc
             firestore.rules
             firestore.indexes.json
+            keys.example.js
