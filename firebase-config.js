@@ -7,7 +7,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app-check.js";
 
 const firebaseConfig = {
-    apiKey: "AIzaSyCr1GJz99pLV2Xqdgh3jRQlbBtPE-lvkkY",
+    apiKey: "AIzaSyDTUZ2_UN-eO4JYKJeMeUTlH_LFhuSOa8o",
     authDomain: "zepol-2c1b5.firebaseapp.com",
     projectId: "zepol-2c1b5",
     storageBucket: "zepol-2c1b5.firebasestorage.app",
