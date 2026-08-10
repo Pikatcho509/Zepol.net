@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ht">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Zepòl — Byenveni</title>
+<meta name="description" content="Zepòl — konpayon sante mantal ou an Kreyòl.">
+<style>
+  :root{
+    --primary:#2d5a27; --primary-dark:#1e3d1a; --primary-light:#4c8c4a;
+    --accent:#d4a373; --bg:#fefae0; --text:#283618; --muted:#5a6b3b;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--text);background:var(--bg);overflow:hidden;
+    -webkit-tap-highlight-color:transparent;
+  }
+  a{text-decoration:none}
+
+  /* ---------- SKIP ---------- */
+  .skip{position:fixed;top:calc(env(safe-area-inset-top) + 16px);right:20px;z-index:30;
+    background:rgba(255,255,255,.7);backdrop-filter:blur(8px);border:none;color:var(--muted);
+    font-weight:700;font-size:.9rem;padding:9px 18px;border-radius:50px;cursor:pointer;font-family:inherit}
+
+  /* ---------- CAROUSEL ---------- */
+  .track{display:flex;height:100%;width:100%;overflow-x:auto;scroll-snap-type:x mandatory;
+    scroll-behavior:smooth;-ms-overflow-style:none;scrollbar-width:none}
+  .track::-webkit-scrollbar{display:none}
+  .slide{min-width:100%;height:100%;scroll-snap-align:center;position:relative;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:70px 26px 150px;overflow:hidden}
+  .slide .blob{position:absolute;border-radius:50%;filter:blur(55px);z-index:0}
+  .slide .blob.x{width:360px;height:360px;top:-100px;left:-110px;opacity:.5}
+  .slide .blob.y{width:300px;height:300px;bottom:20px;right:-90px;opacity:.4}
+  .inner{position:relative;z-index:1;max-width:520px;display:flex;flex-direction:column;align-items:center;
+    animation:none}
+  .art{width:150px;height:150px;border-radius:44px;display:grid;place-items:center;font-size:76px;
+    margin-bottom:34px;box-shadow:0 22px 50px rgba(30,61,26,.18);background:#fff}
+  .kick{font-weight:800;letter-spacing:.1em;text-transform:uppercase;font-size:.78rem;color:var(--accent);margin-bottom:12px}
+  .slide h1{font-size:clamp(1.9rem,7vw,2.7rem);line-height:1.12;color:var(--primary-dark);letter-spacing:-.02em;margin-bottom:16px}
+  .slide h1 em{font-style:normal;background:linear-gradient(120deg,var(--primary),var(--accent));
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .slide p{font-size:clamp(1.02rem,3.6vw,1.22rem);color:var(--muted);max-width:440px;line-height:1.6}
+  .chips{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:26px}
+  .chip{background:rgba(255,255,255,.75);border:1px solid rgba(45,90,39,.12);color:var(--muted);
+    font-weight:600;font-size:.85rem;padding:8px 15px;border-radius:50px}
+
+  /* animate active slide content */
+  .slide.active .art{animation:pop .6s cubic-bezier(.2,.8,.2,1)}
+  .slide.active .inner>*:not(.art){animation:rise .6s ease both}
+  .slide.active .inner>*:nth-child(2){animation-delay:.05s}
+  .slide.active .inner>*:nth-child(3){animation-delay:.12s}
+  .slide.active .inner>*:nth-child(4){animation-delay:.19s}
+  @keyframes pop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
+  @keyframes rise{0%{transform:translateY(22px);opacity:0}100%{transform:none;opacity:1}}
+
+  /* final slide buttons */
+  .cta{display:flex;flex-direction:column;gap:12px;width:100%;max-width:320px;margin-top:32px}
+  .btn{border:none;cursor:pointer;font-weight:700;font-family:inherit;border-radius:50px;
+    padding:16px 28px;font-size:1.05rem;transition:transform .2s;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+  .btn:active{transform:scale(.97)}
+  .btn-primary{background:linear-gradient(135deg,var(--primary),var(--primary-light));color:#fff;box-shadow:0 12px 26px rgba(45,90,39,.3)}
+  .btn-ghost{background:rgba(45,90,39,.08);color:var(--primary-dark)}
+
+  /* ---------- FOOTER CONTROLS ---------- */
+  .controls{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 26px);z-index:30;
+    display:flex;align-items:center;justify-content:space-between;padding:0 26px;gap:16px}
+  .dots{display:flex;gap:9px;align-items:center;margin:0 auto}
+  .dot{width:9px;height:9px;border-radius:50%;background:rgba(45,90,39,.22);transition:all .3s}
+  .dot.on{width:28px;border-radius:50px;background:linear-gradient(90deg,var(--primary),var(--accent))}
+  .nav-btn{width:56px;height:56px;border-radius:50%;border:none;cursor:pointer;font-size:22px;color:#fff;
+    background:linear-gradient(135deg,var(--primary),var(--primary-light));box-shadow:0 10px 24px rgba(45,90,39,.32);
+    display:grid;place-items:center;transition:transform .2s,opacity .2s;flex-shrink:0}
+  .nav-btn:active{transform:scale(.92)}
+  .nav-btn.hidden{opacity:0;pointer-events:none}
+  .nav-btn.back{background:#fff;color:var(--primary);box-shadow:0 8px 20px rgba(30,61,26,.12)}
+</style>
+</head>
+<body>
+
+<button class="skip" onclick="goApp()">Sote →</button>
+
+<div class="track" id="track"></div>
+
+<div class="controls">
+  <button class="nav-btn back hidden" id="prev" onclick="move(-1)">‹</button>
+  <div class="dots" id="dots"></div>
+  <button class="nav-btn" id="next" onclick="move(1)">›</button>
+</div>
+
+<script>
+  const APP = "index.html";
+  // Make onboarding "deja wè" epi ale nan app la (mode opsyonèl: 'login'|'register').
+  function goApp(mode){
+    try{ localStorage.setItem('zepol_onboarded','1'); }catch(e){}
+    window.location.href = APP + (mode ? '#' + mode : '');
+  }
+
+  const SLIDES = [
+    {bg:["#a7c957","#d4a373"], art:"🌿", artbg:"linear-gradient(135deg,#eef7dd,#fff)",
+     kick:"Byenveni", h:"Ou <em>pa pou kont ou</em>",
+     p:"Zepòl se konpayon sante mantal ou — yon espas ak anpati, san jijman, an bon Kreyòl.",
+     chips:["🔒 Konfidansyèl","🇭🇹 An Kreyòl","⏰ 24/7"]},
+
+    {bg:["#4c8c4a","#a7c957"], art:"🤖", artbg:"linear-gradient(135deg,#e5f0e4,#fff)",
+     kick:"Espas 1", h:"Yon <em>zanmi</em> ki koute w",
+     p:"Asistan Zepòl la disponib 24 sou 24 pou koute w, konprann ou, epi ba w konsèy ki dous.",
+     chips:["Pale nenpòt lè","San jijman"]},
+
+    {bg:["#d4a373","#faedcd"], art:"💬", artbg:"linear-gradient(135deg,#faedcd,#fff)",
+     kick:"Espas 2", h:"Yon <em>kominote</em> ki cho",
+     p:"Pataje sa w santi, li istwa siksè, oswa fè yon konfesyon anonim. Isit la, youn sipòte lòt.",
+     chips:["Pataj anonim","Istwa siksè","Sipò"]},
+
+    {bg:["#6aa06a","#c9e4a6"], art:"🧘", artbg:"linear-gradient(135deg,#e5f0e4,#fff)",
+     kick:"Espas 3", h:"Zouti pou <em>kalm</em> ou",
+     p:"Egzèsis respirasyon, teknik pou jere estrès ak anksyete, epi ti jwèt pou soulaje tèt ou.",
+     chips:["🌬️ Respirasyon","🎮 Ti jwèt","😌 Detant"]},
+
+    {bg:["#8aa832","#e0d49a"], art:"📚", artbg:"linear-gradient(135deg,#f3f0dd,#fff)",
+     kick:"Espas 4", h:"<em>Resous</em> pou ale pi lwen",
+     p:"Atik, liv, ak yon lis liy ijans ak sikològ an Ayiti pou ede w chak jou.",
+     chips:["Atik & liv","Liy ijans","Sikològ"]},
+
+    {bg:["#bc4749","#e8a0a1"], art:"🆘", artbg:"linear-gradient(135deg,#fbe4e4,#fff)",
+     kick:"Toujou la", h:"Nan yon <em>kriz</em>? Nou la.",
+     p:"Bouton SOS la ba w touswit liy ijans ak kontak ki ka ede w nan moman ki pi difisil yo.",
+     chips:["Èd rapid","24/7"]},
+
+    {bg:["#2d5a27","#4c8c4a"], art:"💚", artbg:"linear-gradient(135deg,#eef7dd,#fff)", final:true,
+     kick:"Pare?", h:"Fè <em>premye ti pa</em> a",
+     p:"Se gratis, e se pou ou. Antre nan Zepòl jodi a."}
+  ];
+
+  const track=document.getElementById('track');
+  const dotsBox=document.getElementById('dots');
+  track.innerHTML=SLIDES.map((s,i)=>`
+    <section class="slide" data-i="${i}" style="background:radial-gradient(circle at 50% 30%, ${s.bg[0]}22, transparent 60%), var(--bg)">
+      <div class="blob x" style="background:${s.bg[0]}"></div>
+      <div class="blob y" style="background:${s.bg[1]}"></div>
+      <div class="inner">
+        <div class="art" style="background:${s.artbg}">${s.art}</div>
+        <div class="kick">${s.kick}</div>
+        <h1>${s.h}</h1>
+        <p>${s.p}</p>
+        ${s.chips?`<div class="chips">${s.chips.map(c=>`<span class="chip">${c}</span>`).join('')}</div>`:''}
+        ${s.final?`<div class="cta">
+            <button class="btn btn-primary" onclick="goApp('register')">Kreye Kont ✨</button>
+            <button class="btn btn-ghost" onclick="goApp('login')">Mwen gen yon kont</button>
+          </div>`:''}
+      </div>
+    </section>`).join('');
+
+  dotsBox.innerHTML=SLIDES.map((_,i)=>`<span class="dot ${i===0?'on':''}" data-i="${i}"></span>`).join('');
+  const slides=[...track.children], dots=[...dotsBox.children];
+  const prevBtn=document.getElementById('prev'), nextBtn=document.getElementById('next');
+  let idx=0;
+
+  function render(){
+    dots.forEach((d,i)=>d.classList.toggle('on',i===idx));
+    slides.forEach((s,i)=>s.classList.toggle('active',i===idx));
+    prevBtn.classList.toggle('hidden',idx===0);
+    // last slide: hide next arrow (buttons take over)
+    nextBtn.classList.toggle('hidden',idx===SLIDES.length-1);
+  }
+  function goTo(i){idx=Math.max(0,Math.min(SLIDES.length-1,i));track.scrollTo({left:track.clientWidth*idx,behavior:'smooth'});render();}
+  function move(d){goTo(idx+d);}
+  window.move=move; window.goApp=goApp;
+
+  // sync idx when user swipes manually
+  let t;
+  track.addEventListener('scroll',()=>{
+    clearTimeout(t);
+    t=setTimeout(()=>{const i=Math.round(track.scrollLeft/track.clientWidth);if(i!==idx){idx=i;render();}},90);
+  });
+  window.addEventListener('resize',()=>track.scrollTo({left:track.clientWidth*idx}));
+  window.addEventListener('keydown',e=>{if(e.key==='ArrowRight')move(1);if(e.key==='ArrowLeft')move(-1);});
+  render();
+</script>
+</body>
+</html>

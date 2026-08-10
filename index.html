@@ -7,6 +7,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Zepòl - Espas Byennèt Ou</title>
 
+    <!-- Onboarding: voye nouvo vizitè yo sou paj byenveni a (yon sèl fwa) -->
+    <script>
+      (function(){
+        try{
+          if(!localStorage.getItem('zepol_onboarded')){
+            location.replace('welcome.html');
+          }
+        }catch(e){}
+      })();
+    </script>
+
     <!-- PWA -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#10b981">
@@ -22,6 +33,7 @@
     <link rel="stylesheet" href="styles.css?v=18.0.43-MOOD-ENHANCED">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="mobile-and-messaging.css?v=2.0">
+    <link rel="stylesheet" href="dashboard-polish.css?v=18.0.44">
     <script>
         window.onerror = function (msg, url, lineNo, columnNo, error) {
             // Prepare a user-friendly message
@@ -383,7 +395,11 @@
                                         style="color: var(--primary); font-weight: 600; background:none; border:none; cursor:pointer;">Wè
                                         Tout ➔</button>
                                 </div>
-                                <div id="home-posts-feed" style="display: flex; flex-direction: column; gap: 20px;">
+                                <div class="home-feed-sort">
+                                    <button class="home-sort-chip active" data-sort="recent" onclick="window.sortHomeFeed('recent')">🕐 Dènye</button>
+                                    <button class="home-sort-chip" data-sort="popular" onclick="window.sortHomeFeed('popular')">🔥 Popilè</button>
+                                </div>
+                                <div id="home-posts-feed" style="display: flex; flex-direction: column; gap: 16px;">
                                     <div style="text-align:center; padding: 40px; color: #94a3b8;">
                                         <i class="fas fa-spinner fa-spin"
                                             style="font-size: 2rem; margin-bottom: 15px;"></i>
@@ -1700,28 +1716,7 @@
                 </div>
             </footer>
             <!-- Mobile Bottom Nav (User requested removal/unification) -->
-            <nav class="mobile-nav-footer">
-                <div class="mobile-nav-item active" data-view="home" onclick="navigateTo('home')">
-                    <i class="fas fa-home"></i>
-                    <span>Akey</span>
-                </div>
-                <div class="mobile-nav-item" data-view="community" onclick="navigateTo('community')">
-                    <i class="fas fa-users"></i>
-                    <span>Kominote</span>
-                </div>
-                <div class="mobile-nav-item" data-view="wellness" onclick="navigateTo('wellness')">
-                    <i class="fas fa-spa"></i>
-                    <span>Byennèt</span>
-                </div>
-                <div class="mobile-nav-item" data-view="share" onclick="navigateTo('share')">
-                    <i class="fas fa-pen-fancy"></i>
-                    <span>Pataje</span>
-                </div>
-                <div class="mobile-nav-item" data-view="settings" onclick="navigateTo('settings')">
-                    <i class="fas fa-user"></i>
-                    <span>Pwofil</span>
-                </div>
-            </nav>
+            <!-- Meni anba a retire (navigasyon via sidebar/menu). -->
         </main>
     </div> <!-- Closing app-container -->
 
@@ -1811,33 +1806,32 @@
         <div class="modal-content glass-panel">
             <span class="close-modal" onclick="closeModal('auth-modal')">&times;</span>
             <div class="text-center">
-                <span class="emoji-header">🔑</span>
-                <h2>Konekte</h2>
-                <p style="color: #b8860b; margin-bottom: 20px; font-weight: 600;">Byenveni lakay ou ! ✨</p>
+                <span class="emoji-header" style="display:inline-grid;place-items:center;width:64px;height:64px;border-radius:20px;background:linear-gradient(135deg,#2d5a27,#4c8c4a);color:#fff;font-size:30px;box-shadow:0 10px 24px rgba(45,90,39,.28);margin-bottom:6px;">🌿</span>
+                <h2 style="color:#1e3d1a;">Byenveni lakay</h2>
+                <p style="color:#5a6b3b; margin-bottom: 22px; font-weight: 600;">Kontan wè w ankò ✨</p>
             </div>
 
             <form id="login-form">
                 <div class="input-wrapper">
                     <i class="fas fa-user-circle"></i>
-                    <input type="text" placeholder="📧 Imèl oswa 📱 Telefòn" id="login-identifier" required>
+                    <input type="text" placeholder="Imèl oswa telefòn" id="login-identifier" required>
                 </div>
 
                 <div class="input-wrapper" style="position: relative;">
                     <i class="fas fa-lock"></i>
-                    <input type="password" placeholder="🔒 Modpas Sekirite" id="login-password" required
+                    <input type="password" placeholder="Modpas" id="login-password" required
                         style="padding-right: 40px;">
                     <i class="fas fa-eye" id="icon-login-password" onclick="togglePassword('login-password')"
-                        style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #b8860b; z-index: 10;"></i>
+                        style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #4c8c4a; z-index: 10;"></i>
                 </div>
 
                 <div style="margin-top:-10px; margin-bottom: 20px; text-align: right;">
                     <a href="#" onclick="window.resetPassword(); return false;"
-                        style="font-size:12px; color:#b8860b; font-weight: 600;">Bliye modpas? 🧐</a>
+                        style="font-size:12px; color:#4c8c4a; font-weight: 600;">Bliye modpas?</a>
                 </div>
 
-                <button type="submit" class="btn-primary">Konekte 🚀</button>
-                <button type="button" class="btn-close-modal" onclick="closeModal('auth-modal')">Anile / Fèmen
-                    ✖️</button>
+                <button type="submit" class="btn-primary">Konekte</button>
+                <button type="button" class="btn-close-modal" onclick="closeModal('auth-modal')">Fèmen</button>
             </form>
 
             <!-- Divider -->
@@ -1858,7 +1852,7 @@
 
             <p style="margin-top:16px; font-size:14px; text-align:center; color:#718096;">
                 Ou pa gen kont? <a href="#" onclick="switchAuth('register')" class="auth-switch-link"
-                    style="color:#b8860b;">Kreye youn kounye a! 🎁</a>
+                    style="color:var(--primary); font-weight:700;">Kreye youn kounye a</a>
             </p>
         </div>
     </div>
@@ -2937,6 +2931,20 @@
     <!-- Kle AI lokal (gitignored). Dwe chaje AVAN main.js. -->
     <script src="keys.local.js"></script>
     <script type="module" src="main.js?v=18.0.43-MOOD-ENHANCED"></script>
+
+    <!-- Onboarding: louvri modal login/register si paj byenveni a voye yon hash -->
+    <script>
+      window.addEventListener('load', function(){
+        var h = location.hash;
+        if (h !== '#login' && h !== '#register') return;
+        var id = (h === '#register') ? 'register-modal' : 'auth-modal';
+        var tries = 0;
+        var iv = setInterval(function(){
+          if (window.openModal) { try{ window.openModal(id); }catch(e){}; clearInterval(iv); }
+          else if (++tries > 25) { clearInterval(iv); }
+        }, 150);
+      });
+    </script>
 
     <!-- PWA: Service Worker Registration + Install Prompt -->
     <script>

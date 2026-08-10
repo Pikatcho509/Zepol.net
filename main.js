@@ -25,6 +25,41 @@ window.NotificationSystem = NotificationSystem;
 
 let dataManager;
 window.currentUserId = null;
+
+// ── DEV ONLY: fo-login pou travay sou entèfas lokal (JANM pa mache an pwodiksyon) ──
+// Nan konsòl (F12) sou localhost, tape: devLogin()
+window.devLogin = function () {
+    const h = location.hostname;
+    const isLocal = h === 'localhost' || h === '127.0.0.1' || h.startsWith('192.168.') || h.startsWith('10.') || h.endsWith('.local');
+    if (!isLocal) { console.warn('⛔ devLogin dezaktive andeyò lokal.'); return; }
+    if (!dataManager) { console.warn('⏳ dataManager poko pare, eseye ankò nan yon segond.'); return; }
+    dataManager.currentUser = {
+        name: 'Dev Tester', email: 'dev@local', uid: 'dev-local-uid', loggedIn: true,
+        isMember: true, engagementCount: 12, hasAcceptedRules: true, blockedUsers: [],
+        plan: 'ultimate', premiumUntil: null, purchases: []
+    };
+    window.currentUserId = 'dev-local-uid';
+    if (window.updateUserUI) window.updateUserUI();
+    if (window.navigateTo) window.navigateTo('home');
+    console.log('✅ devLogin: fo-itilizatè aktive (lokal sèlman). Done Firestore p ap chaje san kle a, men entèfas la vizib.');
+};
+
+// Bouton "Dev Login" vizib sou lokal sèlman — klike pou fo-login (san konsòl).
+(function () {
+    const h = location.hostname;
+    const isLocal = h === 'localhost' || h === '127.0.0.1' || h.startsWith('192.168.') || h.startsWith('10.') || h.endsWith('.local');
+    if (!isLocal) return;
+    window.addEventListener('load', function () {
+        const b = document.createElement('button');
+        b.textContent = '🔧 Dev Login';
+        b.style.cssText = 'position:fixed;left:16px;bottom:16px;z-index:99999;background:#1e3d1a;color:#fff;border:none;padding:11px 18px;border-radius:50px;font-weight:700;cursor:pointer;box-shadow:0 8px 20px rgba(0,0,0,.3);font-family:inherit;font-size:14px';
+        b.onclick = function () {
+            if (window.closeModal) { try { window.closeModal('auth-modal'); window.closeModal('register-modal'); } catch (e) {} }
+            if (window.devLogin) window.devLogin();
+        };
+        document.body.appendChild(b);
+    });
+})();
 window.currentUserName = null;
 window.currentHomeFilter = 'all';
 window.refreshCurrentUser = () => {
@@ -1478,6 +1513,22 @@ window.addEventListener('click', (e) => {
         }
     }
 });
+
+// Triye feed lakay la (dènye / popilè) epi montre l nan yon lis ki defile.
+window.sortHomeFeed = (mode) => {
+    window.homeSortMode = mode || 'recent';
+    window.showingAllHome = true; // montre plis pòs nan lis ki defile a
+    const arr = [...(window.currentPublicPosts || [])];
+    if (window.homeSortMode === 'popular') {
+        arr.sort((a, b) => (b.likes || 0) - (a.likes || 0));
+    } else {
+        arr.sort((a, b) => new Date(b.date || b.timestamp || 0) - new Date(a.date || a.timestamp || 0));
+    }
+    window.currentPublicPosts = arr;
+    if (window.applyHomeFilter) window.applyHomeFilter(window.currentHomeFilter || 'all');
+    document.querySelectorAll('.home-sort-chip').forEach(b =>
+        b.classList.toggle('active', b.dataset.sort === window.homeSortMode));
+};
 
 window.applyHomeFilter = (mood) => {
     window.currentHomeFilter = mood;
