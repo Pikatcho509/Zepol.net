@@ -1530,6 +1530,23 @@ window.sortHomeFeed = (mode) => {
         b.classList.toggle('active', b.dataset.sort === window.homeSortMode));
 };
 
+// Filtre kat nan paj Resous la (Tout / Atik / Egzèsis).
+window.filterResources = (cat, btn) => {
+    document.querySelectorAll('.resources-categories .cat-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    document.querySelectorAll('.resources-grid .resource-card').forEach(card => {
+        if (cat === 'all') { card.style.display = ''; return; }
+        const img = card.querySelector('.res-img');
+        let type = 'article';
+        if (img && img.classList.contains('category-exercise')) type = 'exercise';
+        else if (img && img.classList.contains('category-article')) type = 'article';
+        else if (img && img.classList.contains('category-app')) type = 'app';
+        else if (img && img.classList.contains('category-community')) type = 'community';
+        else if (img && img.querySelector('img')) type = 'article'; // kat ak vrè foto = atik
+        card.style.display = (type === cat) ? '' : 'none';
+    });
+};
+
 window.applyHomeFilter = (mood) => {
     window.currentHomeFilter = mood;
     if (!window.currentPublicPosts) return;
