@@ -1708,6 +1708,7 @@
                     </div>
                     <div class="footer-bottom">
                         <p>&copy; 2026 Zepòl. Tout dwa rezève. Pwoteksyon done ou se priyorite nou.</p>
+                        <p style="margin-top:6px; font-weight:700;">Kreye pa <span style="color:var(--accent);">Pikatcho509</span> 💚</p>
                         <p style="margin-top: 10px; font-size: 0.95rem; color: #cbd5e0; max-width: 850px;">Zepòl gratis paske sante mantal pa ta dwe koute lajan. Si w kapab ede n kenbe platfòm sa an vi, n ap kontan. Si w pa kapab, w toujou byenveni.</p>
                         <p style="margin-top: 15px; font-size: 0.8rem; color: #718096; max-width: 850px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
                             ⚠️ <strong>Avètisman Enpòtan:</strong> Zepòl se yon platfòm sipò ant zanmi. Li pa ranplase konsiltasyon ak yon pwofesyonèl sante mantal (sikològ, sikyat oswa doktè). Si ou an danje oswa ou gen lide swisid, tanpri rele nimewo ijans imedyatman. Done ou yo an sekirite epi nou pa janm pataje yo ak pèsonn.
@@ -2964,20 +2965,39 @@
             const btn = document.getElementById('pwa-install-btn');
             if (btn) btn.classList.remove('hidden');
         });
+        const isIOSDevice = /iphone|ipad|ipod/i.test(navigator.userAgent);
         window.installZepolApp = async () => {
-            if (!deferredPrompt) {
-                if (window.NotificationSystem) window.NotificationSystem.show("Pou enstale: louvri meni navigatè a → 'Ajoute sou ekran akèy'.", "info");
+            // Chrome/Edge/Android: prompt natif la
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted' && window.NotificationSystem) {
+                    window.NotificationSystem.show("Zepòl ap enstale sou telefòn ou! 🎉", "success");
+                }
+                deferredPrompt = null;
+                const btn = document.getElementById('pwa-install-btn');
+                if (btn) btn.classList.add('hidden');
                 return;
             }
-            deferredPrompt.prompt();
-            const { outcome } = await deferredPrompt.userChoice;
-            if (outcome === 'accepted' && window.NotificationSystem) {
-                window.NotificationSystem.show("Zepòl ap enstale sou telefòn ou! 🎉", "success");
+            // iOS Safari: pa gen prompt natif — bay enstriksyon
+            if (isIOSDevice) {
+                alert("📲 Pou enstale Zepòl sou iPhone/iPad:\n\n1. Peze bouton Pataje (⬆️) anba navigatè a\n2. Desann epi chwazi « Ajoute sou ekran akèy »\n3. Peze « Ajoute »\n\nZepòl ap parèt tankou yon app!");
+                return;
             }
-            deferredPrompt = null;
-            const btn = document.getElementById('pwa-install-btn');
-            if (btn) btn.classList.add('hidden');
+            // Lòt ka: deja enstale oswa meni navigatè
+            if (window.NotificationSystem) {
+                window.NotificationSystem.show("Ou ka deja enstale l. Sinon: meni navigatè a (⋮) → « Enstale Zepòl » / « Ajoute sou ekran akèy ».", "info");
+            } else {
+                alert("Louvri meni navigatè a (⋮) → « Enstale Zepòl » / « Ajoute sou ekran akèy ».");
+            }
         };
+        // iOS pa deklanche beforeinstallprompt — montre bouton an kanmenm (si pa deja enstale)
+        if (isIOSDevice && !window.navigator.standalone) {
+            window.addEventListener('load', () => {
+                const btn = document.getElementById('pwa-install-btn');
+                if (btn) btn.classList.remove('hidden');
+            });
+        }
         // Hide install button once installed
         window.addEventListener('appinstalled', () => {
             const btn = document.getElementById('pwa-install-btn');
