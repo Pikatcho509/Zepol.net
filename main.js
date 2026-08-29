@@ -118,10 +118,6 @@ function getBookmarks() {
     catch(e) { return {}; }
 }
 
-window.isArticleBookmarked = (id) => {
-    return !!getBookmarks()[id];
-};
-
 window.toggleBookmark = (type, id) => {
     const bookmarks = getBookmarks();
     if (bookmarks[id]) {
@@ -399,14 +395,6 @@ window.clearShareImage = () => {
 // --- CHAT INITIALIZATION ---
 window.chatHistory = [];
 window.chatImageBase64 = null;
-
-window.clearChatImage = () => {
-    window.chatImageBase64 = null;
-    const preview = document.getElementById('chat-image-preview');
-    if (preview) preview.classList.add('hidden');
-    const input = document.getElementById('chat-image-input');
-    if (input) input.value = '';
-};
 
 
 /* --- MOOD LOGGING & AFFIRMATIONS --- */
@@ -1453,40 +1441,6 @@ window.startGuestQuiz = () => {
     document.getElementById('quiz-step-1').classList.remove('hidden');
     document.getElementById('quiz-result-gate').classList.add('hidden');
     openModal('guest-quiz-modal');
-};
-
-window.nextQuizStep = (step) => {
-    // Hide all steps first
-    document.querySelectorAll('[id^="quiz-step-"]').forEach(el => el.classList.add('hidden'));
-
-    // Show target step
-    const nextEl = document.getElementById(`quiz-step-${step}`);
-    if (nextEl) {
-        nextEl.classList.remove('hidden');
-        nextEl.classList.add('fade-in');
-        window.currentQuizStep = step;
-    } else {
-        console.warn(`Step ${step} not found`);
-    }
-};
-
-window.finishQuiz = (resultType) => {
-    window.quizData.result = resultType;
-    // Hide all steps
-    document.querySelectorAll('[id^="quiz-step-"]').forEach(el => el.classList.add('hidden'));
-
-    // Show loader
-    const loader = document.getElementById('quiz-step-4');
-    if (loader) loader.classList.remove('hidden');
-
-    setTimeout(() => {
-        if (loader) loader.classList.add('hidden');
-        const gate = document.getElementById('quiz-result-gate');
-        if (gate) {
-            gate.classList.remove('hidden');
-            gate.classList.add('bounce-in');
-        }
-    }, 1500);
 };
 
 window.handleBack = () => navigateTo('home');
