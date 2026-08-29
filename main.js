@@ -1530,6 +1530,33 @@ window.sortHomeFeed = (mode) => {
         b.classList.toggle('active', b.dataset.sort === window.homeSortMode));
 };
 
+// Pataje yon pòs (Web Share API sou telefòn, fallback kopye sou desktop).
+window.handleShare = async (postId) => {
+    const pools = [window.currentPosts, window.currentPublicPosts, window.currentCommunityPosts];
+    let post = null;
+    for (const pool of pools) {
+        if (Array.isArray(pool)) { post = pool.find(p => p && p.id === postId); if (post) break; }
+    }
+    const txt = post ? (post.text || post.content || '') : '';
+    const shareData = {
+        title: 'Zepòl',
+        text: txt ? `"${String(txt).slice(0, 160)}" — sou Zepòl 🌿` : 'Gade Zepòl — espas byennèt mantal an Kreyòl 🌿',
+        url: 'https://zepol.net'
+    };
+    try {
+        if (navigator.share) {
+            await navigator.share(shareData);
+        } else if (navigator.clipboard) {
+            await navigator.clipboard.writeText(shareData.text + ' ' + shareData.url);
+            if (window.NotificationSystem) window.NotificationSystem.show('Lyen an kopye! Pataje l. 📋', 'success');
+        } else if (window.NotificationSystem) {
+            window.NotificationSystem.show('Pataje Zepòl: zepol.net', 'info');
+        }
+    } catch (e) {
+        // Itilizatè a anile pataj la — se pa yon erè.
+    }
+};
+
 // Filtre kat nan paj Resous la (Tout / Atik / Egzèsis).
 window.filterResources = (cat, btn) => {
     document.querySelectorAll('.resources-categories .cat-btn').forEach(b => b.classList.remove('active'));
