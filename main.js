@@ -118,21 +118,6 @@ function getBookmarks() {
     catch(e) { return {}; }
 }
 
-window.toggleBookmark = (type, id) => {
-    const bookmarks = getBookmarks();
-    if (bookmarks[id]) {
-        delete bookmarks[id];
-        NotificationSystem.show('Retire nan favori yo.', 'info');
-    } else {
-        bookmarks[id] = { type, id, savedAt: new Date().toISOString() };
-        NotificationSystem.show('✅ Ajoute nan favori w yo!', 'success');
-    }
-    localStorage.setItem(BOOKMARK_KEY, JSON.stringify(bookmarks));
-    // Refresh the bookmark button color in the UI
-    const btn = document.querySelector(`.bookmark-btn[onclick*="${id}"]`);
-    if (btn) btn.style.color = bookmarks[id] ? '#ff6b6b' : (type === 'book' ? '#475569' : '#999');
-};
-
 // --- MISSING FUNCTIONS IMPLEMENTATION ---
 window.saveDraftFromShare = () => {
     const text = (document.getElementById('share-text-input-page') || document.getElementById('share-text-input'))?.value;
@@ -948,21 +933,6 @@ function removeTypingIndicator(id) {
     if (el) el.remove();
 }
 
-window.toggleChat = () => {
-    const user = dataManager.getUser();
-    // Allow guests to chat too (USER REQUEST IMPLICIT) or keep restricted?
-    // Let's allow everyone for now as it's a key feature.
-    // if (!user.loggedIn) ... 
-
-    const win = document.getElementById('chat-window') || createChatWindow();
-    if (win) {
-        win.classList.toggle('hidden');
-        if (!win.classList.contains('hidden')) {
-            document.getElementById('bot-input')?.focus();
-        }
-    }
-};
-
 // Call init
 // Top-level init block removed. Initialization is handled by window.load at end of file.
 
@@ -1434,15 +1404,6 @@ window.updateSupportJarDisplay = async () => {
 window.currentQuizStep = 1;
 window.quizData = {};
 
-window.startGuestQuiz = () => {
-    window.currentQuizStep = 1;
-    window.quizData = {};
-    document.querySelectorAll('[id^="quiz-step-"]').forEach(el => el.classList.add('hidden'));
-    document.getElementById('quiz-step-1').classList.remove('hidden');
-    document.getElementById('quiz-result-gate').classList.add('hidden');
-    openModal('guest-quiz-modal');
-};
-
 window.handleBack = () => navigateTo('home');
 
 // Click outside to close modals
@@ -1569,11 +1530,6 @@ window.applyHomeFilter = (mood) => {
 };
 
 
-
-window.showAllHomePosts = function () {
-    window.showingAllHome = true;
-    window.applyHomeFilter('all');
-};
 
 window.startGuestQuiz = () => {
     ['1', '2', '3', '4'].forEach(s => document.getElementById(`quiz-step-${s}`)?.classList.add('hidden'));
