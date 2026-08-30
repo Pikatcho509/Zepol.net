@@ -1445,6 +1445,35 @@ window.sortHomeFeed = (mode) => {
         b.classList.toggle('active', b.dataset.sort === window.homeSortMode));
 };
 
+// ── LIY EKOUT — "Rele jis pou tande w" ───────────────────────────────
+// Nimewo moun ka rele jis pou yo santi yo tande — san jijman, san konsèy.
+// ⚠️ RANPLASE nimewo sa yo ak VRÈ nimewo ekout yo (moun k ap soufri ap rele).
+window.LISTENING_LINE = [
+    { name: "Liy Ekout Zepòl", phone: "+509 XXXX-XXXX", hours: "Chak jou 8am – 10pm", note: "An Kreyòl" }
+    // Ajoute lòt nimewo yo isit la:
+    // { name: "...", phone: "+509 ....-....", hours: "...", note: "..." },
+];
+
+window.openListeningLine = () => {
+    const list = document.getElementById('listening-line-list');
+    if (list) {
+        list.innerHTML = window.LISTENING_LINE.map(l => {
+            const dial = String(l.phone).replace(/[^+0-9]/g, '');
+            const ready = /\d{4,}/.test(dial); // gen vrè chif?
+            return `
+            <a href="${ready ? 'tel:' + dial : '#'}" class="listen-call-card"${ready ? '' : ' onclick="return false;"'}>
+                <div class="listen-icon">🎧</div>
+                <div class="listen-info">
+                    <strong>${escapeHtml(l.name)}</strong>
+                    <span>${escapeHtml(l.hours)}${l.note ? ' · ' + escapeHtml(l.note) : ''}</span>
+                </div>
+                <div class="listen-btn">${ready ? '<i class="fas fa-phone"></i> Rele' : 'Byento'}</div>
+            </a>`;
+        }).join('');
+    }
+    openModal('listening-line-modal');
+};
+
 // Pataje yon pòs (Web Share API sou telefòn, fallback kopye sou desktop).
 window.handleShare = async (postId) => {
     const pools = [window.currentPosts, window.currentPublicPosts, window.currentCommunityPosts];

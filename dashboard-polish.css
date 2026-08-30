@@ -244,6 +244,77 @@
 .view textarea:focus,
 .view select:focus { border-color: var(--primary); }
 
+/* ============================================================
+   LIY EKOUT — "Rele jis pou tande w" (fonksyon prensipal)
+   ============================================================ */
+.listening-line-cta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: linear-gradient(135deg, #eef7dd 0%, #ffffff 60%);
+  border: 1.5px solid rgba(45, 90, 39, 0.14);
+  border-left: 6px solid var(--primary);
+  border-radius: 20px;
+  padding: 18px 20px;
+  margin: 16px 0 20px;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(30, 61, 26, 0.07);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.listening-line-cta:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 32px rgba(45, 90, 39, 0.14);
+}
+.listening-line-cta .ll-icon {
+  width: 56px; height: 56px; flex-shrink: 0;
+  border-radius: 16px;
+  display: grid; place-items: center;
+  font-size: 28px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  box-shadow: 0 8px 18px rgba(45, 90, 39, 0.25);
+}
+.listening-line-cta .ll-text { flex: 1; min-width: 0; }
+.listening-line-cta .ll-text h3 { margin: 0 0 3px; color: var(--primary-dark); font-size: 1.12rem; }
+.listening-line-cta .ll-text p { margin: 0; color: var(--muted); font-size: 0.92rem; line-height: 1.45; }
+.listening-line-cta .ll-arrow {
+  color: var(--primary); font-size: 1.2rem; flex-shrink: 0;
+  width: 42px; height: 42px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: rgba(45, 90, 39, 0.08);
+}
+
+/* --- Kat nimewo nan modal la --- */
+.listen-call-card {
+  display: flex; align-items: center; gap: 14px;
+  background: #fff;
+  border: 1px solid rgba(45, 90, 39, 0.12);
+  border-radius: 16px;
+  padding: 14px 16px;
+  text-decoration: none;
+  color: var(--text);
+  transition: all 0.2s ease;
+}
+.listen-call-card:hover {
+  border-color: var(--primary);
+  background: rgba(76, 140, 74, 0.05);
+  transform: translateX(3px);
+}
+.listen-call-card .listen-icon {
+  width: 46px; height: 46px; flex-shrink: 0;
+  border-radius: 12px; display: grid; place-items: center; font-size: 22px;
+  background: linear-gradient(135deg, #faedcd, #fff);
+}
+.listen-call-card .listen-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.listen-call-card .listen-info strong { color: var(--primary-dark); font-size: 1rem; }
+.listen-call-card .listen-info span { color: var(--muted); font-size: 0.85rem; }
+.listen-call-card .listen-btn {
+  flex-shrink: 0;
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  color: #fff; font-weight: 700; font-size: 0.9rem;
+  padding: 9px 16px; border-radius: 50px;
+  display: flex; align-items: center; gap: 7px;
+}
+
 /* --- Ti amelyorasyon mobil --- */
 @media (max-width: 600px) {
   .dashboard-header-modern { padding: 20px 20px; border-radius: 20px; }

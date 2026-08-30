@@ -164,6 +164,16 @@
                 <div id="view-home" class="view active">
                     <div class="container">
 
+                        <!-- LIY EKOUT — Fonksyon prensipal: "Rele jis pou tande w" -->
+                        <div class="listening-line-cta" onclick="window.openListeningLine()" role="button" tabindex="0">
+                            <div class="ll-icon">🎧</div>
+                            <div class="ll-text">
+                                <h3>Rele jis pou tande w</h3>
+                                <p>Defwa ou jis bezwen yon moun ki koute w — san jijman, san konsèy.</p>
+                            </div>
+                            <div class="ll-arrow"><i class="fas fa-phone-volume"></i></div>
+                        </div>
+
                         <!-- MEMBER DASHBOARD CONTENT (New Control Center) -->
                         <div class="container dashboard-container hidden" id="member-home-content">
 
@@ -1700,6 +1710,7 @@
                         <div class="footer-col">
                             <h4>Èd ak Sipò</h4>
                             <ul>
+                                <li><a href="#" onclick="window.openListeningLine(); return false;">🎧 Rele jis pou tande w</a></li>
                                 <li><a href="#" onclick="openModal('sos-modal')">Ijans SOS</a></li>
                                 <li><a href="#" onclick="navigateTo('settings')">Paramèt</a></li>
                                 <li><a href="mailto:sipozepol@gmail.com">Kontakte nou</a></li>
@@ -1722,6 +1733,26 @@
     </div> <!-- Closing app-container -->
 
     <!-- Modals (Overlay) -->
+    <!-- LIY EKOUT MODAL — "Rele jis pou tande w" -->
+    <div id="listening-line-modal" class="modal hidden">
+        <div class="modal-content glass-panel" style="max-width: 480px;">
+            <span class="close-modal" onclick="closeModal('listening-line-modal')">&times;</span>
+            <div class="text-center">
+                <span class="emoji-header" style="display:inline-grid;place-items:center;width:66px;height:66px;border-radius:20px;background:linear-gradient(135deg,#2d5a27,#4c8c4a);color:#fff;font-size:32px;box-shadow:0 10px 24px rgba(45,90,39,.28);margin-bottom:8px;">🎧</span>
+                <h2 style="color:#1e3d1a;">Rele jis pou tande w</h2>
+                <p style="color:#5a6b3b; margin: 6px 0 20px; font-weight:500; line-height:1.55;">
+                    Defwa ou pa bezwen konsèy — ou jis bezwen yon moun ki koute w.
+                    Rele youn nan nimewo sa yo. <strong>San jijman. San presyon. Jis koute.</strong>
+                </p>
+            </div>
+            <div id="listening-line-list" style="display:flex; flex-direction:column; gap:12px;"></div>
+            <p style="margin-top:18px; font-size:0.82rem; color:#94a3b8; text-align:center;">
+                Si ou nan gwo danje oswa ou gen lide swisid, tanpri itilize
+                <a href="#" onclick="closeModal('listening-line-modal'); openModal('sos-modal'); return false;" style="color:var(--danger); font-weight:700;">SOS Ijans</a>.
+            </p>
+        </div>
+    </div>
+
     <!-- SOS MODAL -->
     <div id="sos-modal" class="modal hidden danger-modal">
         <div class="modal-content glass-panel" style="border-top: none; text-align: center; padding-top: 30px;">
