@@ -225,6 +225,13 @@ service cloud.firestore {
       allow update: if isAdmin();
     }
 
+    // ── LIY EKOUT (nimewo pou rele) ──────────────────────────────
+    // Tout moun ka li; sèlman admin ka ajoute/efase.
+    match /listening_line/{lineId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
     // ── DEFAULT DENY ─────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;

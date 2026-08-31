@@ -973,6 +973,45 @@ export class FirebaseManager {
         return !!auth.currentUser?.emailVerified;
     }
 
+    // ── LIY EKOUT — nimewo admin ka jere ──────────────────────────
+    async getListeningLine() {
+        try {
+            const snap = await getDocs(collection(db, "listening_line"));
+            return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        } catch (e) {
+            console.warn("getListeningLine error:", e?.message);
+            return [];
+        }
+    }
+
+    async addListeningNumber(data) {
+        if (!this.isAdmin()) return { success: false, message: "Pa otorize." };
+        try {
+            await addDoc(collection(db, "listening_line"), {
+                name: (data.name || "Liy Ekout").slice(0, 80),
+                phone: (data.phone || "").slice(0, 40),
+                hours: (data.hours || "").slice(0, 60),
+                note: (data.note || "").slice(0, 60),
+                createdAt: new Date().toISOString()
+            });
+            return { success: true };
+        } catch (e) {
+            console.error("addListeningNumber error:", e);
+            return { success: false, message: "Erè pandan ajoute nimewo a." };
+        }
+    }
+
+    async deleteListeningNumber(id) {
+        if (!this.isAdmin()) return { success: false, message: "Pa otorize." };
+        try {
+            await deleteDoc(doc(db, "listening_line", id));
+            return { success: true };
+        } catch (e) {
+            console.error("deleteListeningNumber error:", e);
+            return { success: false, message: "Erè." };
+        }
+    }
+
     async getUserProfile(uid) {
         try {
             // Read the public mirror — NOT the private users doc.

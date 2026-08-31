@@ -1448,30 +1448,88 @@ window.sortHomeFeed = (mode) => {
 // ── LIY EKOUT — "Rele jis pou tande w" ───────────────────────────────
 // Nimewo moun ka rele jis pou yo santi yo tande — san jijman, san konsèy.
 // ⚠️ RANPLASE nimewo sa yo ak VRÈ nimewo ekout yo (moun k ap soufri ap rele).
+// Nimewo baz yo (toujou disponib, menm san entènèt). Admin ka ajoute plis
+// nan Firestore (koleksyon "listening_line") ki parèt anplis de sa yo.
 window.LISTENING_LINE = [
-    { name: "Liy Ekout Zepòl", phone: "+509 XXXX-XXXX", hours: "Chak jou 8am – 10pm", note: "An Kreyòl" }
-    // Ajoute lòt nimewo yo isit la:
-    // { name: "...", phone: "+509 ....-....", hours: "...", note: "..." },
+    { name: "Liy Ekout Zepòl", phone: "+509 4005-7183", hours: "Chak jou", note: "An Kreyòl" },
+    { name: "Liy Ekout Zepòl", phone: "+509 4903-3260", hours: "Chak jou", note: "An Kreyòl" }
 ];
 
-window.openListeningLine = () => {
+function renderListeningCard(l) {
+    const dial = String(l.phone).replace(/[^+0-9]/g, '');
+    const ready = /\d{4,}/.test(dial);
+    return `
+        <a href="${ready ? 'tel:' + dial : '#'}" class="listen-call-card"${ready ? '' : ' onclick="return false;"'}>
+            <div class="listen-icon">🎧</div>
+            <div class="listen-info">
+                <strong>${escapeHtml(l.name || 'Liy Ekout')}</strong>
+                <span>${escapeHtml(l.hours || '')}${l.note ? ' · ' + escapeHtml(l.note) : ''}</span>
+            </div>
+            <div class="listen-btn">${ready ? '<i class="fas fa-phone"></i> Rele' : 'Byento'}</div>
+        </a>`;
+}
+
+window.openListeningLine = async () => {
     const list = document.getElementById('listening-line-list');
     if (list) {
-        list.innerHTML = window.LISTENING_LINE.map(l => {
-            const dial = String(l.phone).replace(/[^+0-9]/g, '');
-            const ready = /\d{4,}/.test(dial); // gen vrè chif?
-            return `
-            <a href="${ready ? 'tel:' + dial : '#'}" class="listen-call-card"${ready ? '' : ' onclick="return false;"'}>
-                <div class="listen-icon">🎧</div>
-                <div class="listen-info">
-                    <strong>${escapeHtml(l.name)}</strong>
-                    <span>${escapeHtml(l.hours)}${l.note ? ' · ' + escapeHtml(l.note) : ''}</span>
-                </div>
-                <div class="listen-btn">${ready ? '<i class="fas fa-phone"></i> Rele' : 'Byento'}</div>
-            </a>`;
-        }).join('');
+        // Montre nimewo baz yo touswit
+        let numbers = [...window.LISTENING_LINE];
+        list.innerHTML = numbers.map(renderListeningCard).join('');
+        // Apre sa, ajoute nimewo admin yo depi Firestore (si genyen)
+        try {
+            if (dataManager && dataManager.getListeningLine) {
+                const extra = await dataManager.getListeningLine();
+                if (Array.isArray(extra) && extra.length) {
+                    const seen = new Set(numbers.map(n => String(n.phone).replace(/[^0-9]/g, '')));
+                    extra.forEach(e => {
+                        const key = String(e.phone || '').replace(/[^0-9]/g, '');
+                        if (key && !seen.has(key)) { numbers.push(e); seen.add(key); }
+                    });
+                    list.innerHTML = numbers.map(renderListeningCard).join('');
+                }
+            }
+        } catch (e) { /* offline — nimewo baz yo ase */ }
     }
     openModal('listening-line-modal');
+};
+
+// ── ADMIN: jere nimewo Liy Ekout ─────────────────────────────────────
+window.loadAdminListeningLine = async () => {
+    const box = document.getElementById('ll-admin-list');
+    if (!box || !dataManager || !dataManager.getListeningLine) return;
+    const nums = await dataManager.getListeningLine();
+    if (!nums.length) {
+        box.innerHTML = '<div style="font-size:0.8rem;color:#6b7280;">Pa gen nimewo admin ajoute (2 nimewo baz yo toujou la).</div>';
+        return;
+    }
+    box.innerHTML = nums.map(n => `
+        <div style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #cfe6b8;border-radius:8px;padding:8px 10px;">
+            <span style="flex:1;font-size:0.82rem;color:#1f2937;"><strong>${escapeHtml(n.name || '')}</strong> · ${escapeHtml(n.phone || '')} ${n.hours ? ('· ' + escapeHtml(n.hours)) : ''}</span>
+            <button onclick="window.adminDeleteListeningNumber('${safeArg(n.id)}')" style="background:#fee2e2;color:#b91c1c;border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:0.78rem;font-weight:600;">Efase</button>
+        </div>`).join('');
+};
+
+window.adminAddListeningNumber = async () => {
+    const name = document.getElementById('ll-name')?.value.trim();
+    const phone = document.getElementById('ll-phone')?.value.trim();
+    const hours = document.getElementById('ll-hours')?.value.trim();
+    const note = document.getElementById('ll-note')?.value.trim();
+    if (!phone) return NotificationSystem.show("Mete yon nimewo.", "warning");
+    const res = await dataManager.addListeningNumber({ name, phone, hours, note });
+    if (res.success) {
+        NotificationSystem.show("Nimewo ajoute! 🎧", "success");
+        ['ll-name', 'll-phone', 'll-hours', 'll-note'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+        window.loadAdminListeningLine();
+    } else {
+        NotificationSystem.show(res.message || "Erè.", "warning");
+    }
+};
+
+window.adminDeleteListeningNumber = async (id) => {
+    if (!confirm("Efase nimewo sa a?")) return;
+    const res = await dataManager.deleteListeningNumber(id);
+    if (res.success) { NotificationSystem.show("Efase.", "info"); window.loadAdminListeningLine(); }
+    else NotificationSystem.show(res.message || "Erè.", "warning");
 };
 
 // Pataje yon pòs (Web Share API sou telefòn, fallback kopye sou desktop).
@@ -3412,6 +3470,7 @@ window.openAdminPanel = () => {
     }
     openModal('admin-modal');
     window.switchAdminTab('subscriptions');
+    if (window.loadAdminListeningLine) window.loadAdminListeningLine();
 };
 
 window.switchAdminTab = (tab, btnEl) => {
